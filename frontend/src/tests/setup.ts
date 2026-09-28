@@ -13,6 +13,10 @@ afterEach(() => {
   sessionStorage.clear();
 });
 
+// Environment shims below are assigned directly rather than via vi.stubGlobal:
+// they're permanent polyfills, and tests that call vi.unstubAllGlobals() to
+// restore their own fetch stub must not tear them down.
+
 // jsdom implements none of the layout APIs the chart relies on. Give every
 // element a fixed 800x400 box so measured layouts are deterministic.
 class ResizeObserverStub {
@@ -20,7 +24,7 @@ class ResizeObserverStub {
   unobserve() {}
   disconnect() {}
 }
-vi.stubGlobal("ResizeObserver", ResizeObserverStub);
+globalThis.ResizeObserver = ResizeObserverStub as unknown as typeof ResizeObserver;
 
 Object.defineProperty(HTMLElement.prototype, "offsetWidth", { configurable: true, value: 800 });
 Object.defineProperty(HTMLElement.prototype, "offsetHeight", { configurable: true, value: 400 });
@@ -42,19 +46,16 @@ HTMLElement.prototype.getBoundingClientRect = vi.fn(() => ({
 HTMLElement.prototype.scrollIntoView = vi.fn();
 
 // Motion's useReducedMotion and our media checks read matchMedia.
-vi.stubGlobal(
-  "matchMedia",
-  vi.fn((query: string) => ({
-    matches: false,
-    media: query,
-    onchange: null,
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-    addListener: vi.fn(),
-    removeListener: vi.fn(),
-    dispatchEvent: vi.fn(),
-  }))
-);
+window.matchMedia = ((query: string) => ({
+  matches: false,
+  media: query,
+  onchange: null,
+  addEventListener: () => {},
+  removeEventListener: () => {},
+  addListener: () => {},
+  removeListener: () => {},
+  dispatchEvent: () => false,
+})) as unknown as typeof window.matchMedia;
 
 // jsdom has no PointerEvent; without it fireEvent.pointerMove drops clientX.
 if (typeof window.PointerEvent === "undefined") {
@@ -67,5 +68,5 @@ if (typeof window.PointerEvent === "undefined") {
       this.pointerType = init.pointerType ?? "mouse";
     }
   }
-  vi.stubGlobal("PointerEvent", PointerEventPolyfill);
+  window.PointerEvent = PointerEventPolyfill as unknown as typeof PointerEvent;
 }

@@ -42,5 +42,5 @@ export function useTheme() {
   const toggleTheme = useCallback(() => setTheme((t) => (t === "dark" ? "light" : "dark")), []);
   const togglePalette = useCallback(() => setPalette((p) => (p === "classic" ? "cvd" : "classic")), []);
 
-  return { theme, palette, toggleTheme, togglePalette, toggle: toggleTheme };
+  return { theme, palette, toggleTheme, togglePalette };
 }
