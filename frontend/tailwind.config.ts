@@ -1,48 +1,72 @@
 import type { Config } from "tailwindcss";
 
+const token = (name: string) => `rgb(var(--${name}) / <alpha-value>)`;
+
 export default {
   content: ["./index.html", "./src/**/*.{ts,tsx}"],
-  darkMode: "class",
+  // hover: variants only apply where a real hover exists, so taps on touch
+  // screens don't leave rows stuck in their hover state.
+  future: { hoverOnlyWhenSupported: true },
   theme: {
     extend: {
       colors: {
-        obsidian: "rgb(var(--color-bg) / <alpha-value>)",
-        "obsidian-deep": "rgb(var(--color-bg-deep) / <alpha-value>)",
+        canvas: token("color-bg"),
+        well: token("color-bg-deep"),
+        surface: {
+          DEFAULT: token("color-card"),
+          raised: token("color-card-raised"),
+        },
+        line: {
+          DEFAULT: token("color-border"),
+          strong: token("color-border-strong"),
+        },
+        grid: token("color-grid"),
+        ink: {
+          DEFAULT: token("color-text-primary"),
+          2: token("color-text-secondary"),
+          3: token("color-text-muted"),
+        },
+        up: token("color-up"),
+        down: token("color-down"),
+        accent: token("color-accent"),
+        warn: token("color-warn"),
+        brand: token("color-brand"),
+        series: {
+          forecast: token("series-forecast"),
+          ema20: token("series-ema20"),
+          ema50: token("series-ema50"),
+        },
+
+        // Legacy names used by the pre-terminal components.
+        obsidian: token("color-bg"),
+        "obsidian-deep": token("color-bg-deep"),
         slate: {
-          card: "rgb(var(--color-card) / <alpha-value>)",
-          border: "rgb(var(--color-border) / <alpha-value>)",
-          text: "rgb(var(--color-text-secondary) / <alpha-value>)",
+          card: token("color-card"),
+          border: token("color-border"),
+          text: token("color-text-secondary"),
         },
-        primary: "rgb(var(--color-text-primary) / <alpha-value>)",
-        bull: {
-          DEFAULT: "#00E676",
-          dark: "#00C853",
-        },
-        bear: {
-          DEFAULT: "#FF3B30",
-          light: "#FF5252",
-        },
-        cyan: {
-          DEFAULT: "#00E5FF",
-        },
+        primary: token("color-text-primary"),
+        bull: { DEFAULT: "#00E676", dark: "#00C853" },
+        bear: { DEFAULT: "#FF3B30", light: "#FF5252" },
+        cyan: { DEFAULT: "#00E5FF" },
       },
       fontFamily: {
-        mono: ["JetBrains Mono", "Menlo", "monospace"],
-        sans: ["Inter", "system-ui", "sans-serif"],
+        sans: ["Geist", "Inter", "system-ui", "sans-serif"],
+        mono: ["JetBrains Mono", "ui-monospace", "Menlo", "monospace"],
+      },
+      fontSize: {
+        "2xs": ["10px", { lineHeight: "14px" }],
+      },
+      transitionTimingFunction: {
+        out: "cubic-bezier(0.23, 1, 0.32, 1)",
+        "in-out": "cubic-bezier(0.77, 0, 0.175, 1)",
       },
       backgroundImage: {
         "bull-gradient": "linear-gradient(135deg, #00E676 0%, #00C853 100%)",
-        "bull-glow": "radial-gradient(circle, rgba(16,185,129,0.2) 0%, transparent 70%)",
-        "bear-glow": "radial-gradient(circle, rgba(255,59,48,0.2) 0%, transparent 70%)",
-        "cyan-glow": "radial-gradient(circle, rgba(0,229,255,0.18) 0%, transparent 70%)",
       },
       boxShadow: {
         "glow-bull": "0 0 24px rgba(0, 230, 118, 0.25)",
-        "glow-bear": "0 0 24px rgba(255, 59, 48, 0.25)",
         "glow-cyan": "0 0 24px rgba(0, 229, 255, 0.25)",
-      },
-      backdropBlur: {
-        xs: "2px",
       },
       keyframes: {
         "pulse-dot": {

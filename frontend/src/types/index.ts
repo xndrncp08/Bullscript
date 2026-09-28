@@ -135,3 +135,44 @@ export interface DiagnosticsResponse {
   drift_psi_threshold: number;
   models: ModelDiagnostics[];
 }
+
+export interface Quote {
+  symbol: string;
+  price: number;
+  previous_close: number;
+  change: number;
+  /** Fractional change vs previous close, e.g. 0.0153. */
+  change_pct: number;
+  volume: number | null;
+  as_of: string;
+  /** Recent daily closes, oldest first. */
+  sparkline: number[];
+}
+
+export interface QuotesResponse {
+  generated_at: string;
+  quotes: Quote[];
+}
+
+export interface RetrainMetrics {
+  rmse: number;
+  mape: number;
+  r2: number;
+  skill: number;
+  hit_rate: number;
+  naive_rmse: number;
+  residual_std: number;
+}
+
+export interface RetrainResult {
+  promoted: boolean;
+  trigger: string;
+  metrics: RetrainMetrics;
+  psi: number | null;
+  version: string;
+}
+
+export interface RetrainResponse {
+  symbol: string;
+  results: Record<string, RetrainResult>;
+}

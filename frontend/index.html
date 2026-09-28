@@ -1,20 +1,30 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/brand/favicon-64.png" />
     <link rel="apple-touch-icon" href="/brand/apple-touch-icon.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="BullScript — real-time ML-powered stock market analytics" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#080A0D" />
+    <meta name="description" content="BullScript — a market intelligence terminal with self-training forecasts and FinBERT sentiment" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap"
       rel="stylesheet"
     />
-    <title>BullScript — Real-Time Market Intelligence</title>
+    <script>
+      // Apply stored appearance before first paint so a light-theme user never
+      // sees a dark flash (and vice versa).
+      try {
+        var theme = localStorage.getItem("bullscript-theme");
+        if (theme === "light" || theme === "dark") document.documentElement.dataset.theme = theme;
+        if (localStorage.getItem("bullscript-palette") === "cvd") document.documentElement.dataset.palette = "cvd";
+      } catch (e) {}
+    </script>
+    <title>BullScript — Market Intelligence Terminal</title>
   </head>
-  <body class="bg-obsidian">
+  <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
