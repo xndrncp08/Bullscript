@@ -10,6 +10,7 @@ import {
   YAxis,
 } from "recharts";
 
+import Skeleton from "./Skeleton";
 import type { ChartResponse, PredictionResponse } from "@/types";
 
 interface PredictionChartProps {
@@ -18,7 +19,15 @@ interface PredictionChartProps {
   loading: boolean;
 }
 
-const HORIZONS = ["5d", "14d", "30d"] as const;
+const FORECAST_HORIZONS = ["5d", "14d", "30d"] as const;
+
+const RANGES = [
+  { key: "1D", days: 2 },
+  { key: "5D", days: 5 },
+  { key: "1M", days: 21 },
+  { key: "6M", days: 126 },
+  { key: "1Y", days: 252 },
+] as const;
 
 type ChartRow = {
   date: string;
@@ -29,12 +38,14 @@ type ChartRow = {
 };
 
 export default function PredictionChart({ chart, prediction, loading }: PredictionChartProps) {
-  const [horizon, setHorizon] = useState<(typeof HORIZONS)[number]>("14d");
+  const [horizon, setHorizon] = useState<(typeof FORECAST_HORIZONS)[number]>("14d");
+  const [range, setRange] = useState<(typeof RANGES)[number]["key"]>("1M");
 
   const rows: ChartRow[] = useMemo(() => {
     if (!chart) return [];
 
-    const historical: ChartRow[] = chart.candles.slice(-90).map((c) => ({
+    const rangeDays = RANGES.find((r) => r.key === range)?.days ?? 21;
+    const historical: ChartRow[] = chart.candles.slice(-rangeDays).map((c) => ({
       date: c.date,
       actual: c.close,
     }));
@@ -59,40 +70,67 @@ export default function PredictionChart({ chart, prediction, loading }: Predicti
     }
 
     return [...historical, ...forecastRows];
-  }, [chart, prediction, horizon]);
+  }, [chart, prediction, horizon, range]);
 
   const activeForecast = prediction?.horizons.find((h) => h.horizon === horizon);
 
   return (
-    <div className="panel flex h-full flex-col p-4">
-      <div className="mb-3 flex items-center justify-between">
+    <div className="panel-glass flex h-full flex-col p-4">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold text-primary">Price & ML Forecast</h2>
           <p className="text-xs text-slate-text">
             {chart ? chart.symbol : "—"} · historical close blended into predicted trajectory
           </p>
         </div>
-        <div className="flex items-center gap-1 rounded-lg border border-slate-border bg-obsidian p-1">
-          {HORIZONS.map((h) => (
-            <button
-              key={h}
-              onClick={() => setHorizon(h)}
-              className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-                horizon === h
-                  ? "bg-bull-gradient text-obsidian"
-                  : "text-slate-text hover:text-primary"
-              }`}
-            >
-              {h.toUpperCase()}
-            </button>
-          ))}
+
+        <div className="flex flex-wrap items-center gap-3">
+          <div
+            className="flex items-center gap-1 rounded-lg border border-slate-border bg-obsidian p-1"
+            role="group"
+            aria-label="Historical range"
+          >
+            {RANGES.map((r) => (
+              <button
+                key={r.key}
+                onClick={() => setRange(r.key)}
+                className={`rounded-md px-2 py-1 text-xs font-medium transition-colors ${
+                  range === r.key
+                    ? "bg-slate-card text-cyan"
+                    : "text-slate-text hover:text-primary"
+                }`}
+              >
+                {r.key}
+              </button>
+            ))}
+          </div>
+
+          <div
+            className="flex items-center gap-1 rounded-lg border border-slate-border bg-obsidian p-1"
+            role="group"
+            aria-label="Forecast horizon"
+          >
+            {FORECAST_HORIZONS.map((h) => (
+              <button
+                key={h}
+                onClick={() => setHorizon(h)}
+                className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                  horizon === h
+                    ? "bg-bull-gradient text-obsidian"
+                    : "text-slate-text hover:text-primary"
+                }`}
+              >
+                {h.toUpperCase()}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
       <div className="flex-1">
         {loading ? (
-          <div className="flex h-full items-center justify-center text-sm text-slate-text">
-            Loading chart data…
+          <div className="flex h-full flex-col justify-end gap-2" data-testid="chart-skeleton">
+            <Skeleton className="h-full w-full" />
           </div>
         ) : (
           <ResponsiveContainer width="100%" height="100%" minHeight={320}>

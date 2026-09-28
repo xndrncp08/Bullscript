@@ -1,6 +1,8 @@
 import { RefreshCw, TerminalSquare } from "lucide-react";
 import { useState } from "react";
+import { Bar, BarChart, Cell, ResponsiveContainer, XAxis, YAxis } from "recharts";
 
+import Skeleton from "./Skeleton";
 import type { DiagnosticsResponse } from "@/types";
 
 interface ModelDiagnosticsProps {
@@ -24,14 +26,20 @@ export default function ModelDiagnostics({ diagnostics, loading, onRetrain }: Mo
   const activeModel = diagnostics?.models[0];
   const importances = Object.entries(activeModel?.feature_importances ?? {})
     .sort((a, b) => b[1] - a[1])
-    .slice(0, 6);
+    .slice(0, 6)
+    .map(([name, value]) => ({ name, value }));
 
   return (
-    <div className="panel flex h-full flex-col p-4 font-mono">
+    <div className="panel-glass flex h-full flex-col p-4 font-mono">
       <div className="mb-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <TerminalSquare className="h-4 w-4 text-bull" />
           <h2 className="text-sm font-semibold text-primary">ml/diagnostics</h2>
+          {activeModel && (
+            <span className="inline-flex items-center gap-1 rounded-md border border-cyan/30 bg-cyan/10 px-1.5 py-0.5 text-[10px] font-semibold text-cyan">
+              ACTIVE
+            </span>
+          )}
         </div>
         <button
           onClick={handleRetrain}
@@ -45,7 +53,12 @@ export default function ModelDiagnostics({ diagnostics, loading, onRetrain }: Mo
 
       <div className="flex-1 overflow-y-auto rounded-lg border border-slate-border bg-obsidian p-3 text-xs leading-relaxed">
         {loading ? (
-          <p className="text-slate-text">$ fetching diagnostics…</p>
+          <div className="space-y-2" data-testid="diagnostics-skeleton">
+            <Skeleton className="h-4 w-48" />
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-24 w-full" />
+            <Skeleton className="h-16 w-full" />
+          </div>
         ) : !activeModel ? (
           <p className="text-slate-text">$ no active models yet — trigger a retrain to begin.</p>
         ) : (
@@ -64,18 +77,37 @@ export default function ModelDiagnostics({ diagnostics, loading, onRetrain }: Mo
             </p>
 
             <p className="mt-3 text-cyan">$ model --feature-importance</p>
-            {importances.map(([name, value]) => (
-              <div key={name} className="mt-1 flex items-center gap-2">
-                <span className="w-28 shrink-0 text-slate-text">{name}</span>
-                <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-border">
-                  <div
-                    className="h-full bg-bull-gradient"
-                    style={{ width: `${Math.min(100, value * 500)}%` }}
-                  />
-                </div>
-                <span className="w-14 text-right text-primary">{value.toFixed(3)}</span>
+            {importances.length > 0 && (
+              <ul className="sr-only">
+                {importances.map((f) => (
+                  <li key={f.name}>
+                    {f.name}: {f.value.toFixed(3)}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {importances.length > 0 && (
+              <div className="mt-1 h-40 w-full" aria-hidden="true">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={importances} layout="vertical" margin={{ left: 8, right: 16 }}>
+                    <XAxis type="number" hide />
+                    <YAxis
+                      type="category"
+                      dataKey="name"
+                      width={80}
+                      tick={{ fontSize: 10, fill: "#8A99AD" }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={12}>
+                      {importances.map((entry, idx) => (
+                        <Cell key={entry.name} fill={idx === 0 ? "#00E676" : "#00C853"} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
               </div>
-            ))}
+            )}
 
             <p className="mt-3 text-cyan">$ model --retrain-log --tail 5</p>
             {activeModel.retrain_log.slice(0, 5).map((entry, idx) => (

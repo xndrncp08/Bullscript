@@ -53,9 +53,9 @@ const diagnostics: DiagnosticsResponse = {
 };
 
 describe("ModelDiagnostics", () => {
-  it("shows a loading state in the terminal console", () => {
+  it("shows a skeleton loading state in the terminal console", () => {
     render(<ModelDiagnostics diagnostics={null} loading={true} onRetrain={vi.fn()} />);
-    expect(screen.getByText(/fetching diagnostics/i)).toBeInTheDocument();
+    expect(screen.getByTestId("diagnostics-skeleton")).toBeInTheDocument();
   });
 
   it("shows an empty state when no models are tracked yet", () => {
