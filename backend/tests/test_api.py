@@ -161,6 +161,18 @@ def test_post_retrain_triggers_pipeline_and_returns_results(monkeypatch):
     assert body["results"] == fake_results
 
 
+def test_post_retrain_404_for_unknown_symbol(monkeypatch):
+    from app.services.data_fetcher import TickerNotFoundError
+
+    def raise_not_found(symbol, horizons):
+        raise TickerNotFoundError(f"No price history found for symbol '{symbol}'")
+
+    monkeypatch.setattr(model_route, "run_full_retrain", raise_not_found)
+
+    response = client.post("/api/v1/model/retrain", json={"symbol": "NOTAREALTICKER"})
+    assert response.status_code == 404
+
+
 def test_cors_headers_present_for_allowed_origin(mocked_chart):
     response = client.get(
         "/api/v1/ticker/AAPL/chart",
@@ -180,3 +192,15 @@ def test_cors_preflight_allows_post_for_retrain():
     )
     assert response.status_code == 200
     assert response.headers.get("access-control-allow-origin") == "http://localhost:5173"
+
+
+def test_retrain_endpoint_returns_429_after_exceeding_its_rate_limit(monkeypatch):
+    monkeypatch.setattr(model_route, "run_full_retrain", lambda symbol, horizons: {})
+
+    # /model/retrain is limited to 5/minute
+    for _ in range(5):
+        response = client.post("/api/v1/model/retrain", json={"symbol": "RATE"})
+        assert response.status_code == 200
+
+    response = client.post("/api/v1/model/retrain", json={"symbol": "RATE"})
+    assert response.status_code == 429
