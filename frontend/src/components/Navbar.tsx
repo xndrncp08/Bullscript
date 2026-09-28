@@ -30,9 +30,9 @@ export default function Navbar({ activeSymbol, onSymbolChange }: NavbarProps) {
           </div>
         ) : (
           <img
-            src="/logo.png"
+            src="/brand/emblem-160.png"
             alt="BullScript logo"
-            className="h-9 w-9 rounded-md object-cover"
+            className="h-8 w-10 object-contain"
             onError={() => setLogoFailed(true)}
           />
         )}
