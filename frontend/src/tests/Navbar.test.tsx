@@ -10,7 +10,7 @@ describe("Navbar", () => {
 
     const logo = screen.getByAltText("BullScript logo");
     expect(logo).toBeInTheDocument();
-    expect(logo).toHaveAttribute("src", "/logo.png");
+    expect(logo).toHaveAttribute("src", "/brand/emblem-160.png");
   });
 
   it("renders the >_ terminal badge", () => {

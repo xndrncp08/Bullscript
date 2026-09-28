@@ -3,7 +3,7 @@
 Real-time stock market analytics platform with a self-training ML forecasting
 engine and Hugging Face FinBERT news sentiment analysis.
 
-![BullScript](frontend/src/assets/bullscript-logo.png)
+![BullScript](frontend/public/brand/bullscript-logo.png)
 
 ## Architecture
 
