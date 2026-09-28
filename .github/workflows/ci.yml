@@ -2,14 +2,20 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, "feature/**", "fix/**"]
   pull_request:
     branches: [main]
+
+# A newer push to the same branch supersedes an in-flight run.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   backend-tests:
     name: Backend (pytest)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: backend
@@ -22,6 +28,8 @@ jobs:
           cache: "pip"
           cache-dependency-path: backend/requirements-test.txt
 
+      # Lean set: FinBERT is mocked in tests and falls back offline, so
+      # torch/transformers aren't installed here.
       - name: Install dependencies
         run: pip install -r requirements-test.txt
 
@@ -29,8 +37,9 @@ jobs:
         run: python -m pytest -v
 
   frontend-tests:
-    name: Frontend (Vitest)
+    name: Frontend (typecheck, Vitest, build)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: frontend
