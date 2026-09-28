@@ -36,10 +36,19 @@ export function Sparkline({ values, direction, width = 64, height = 20, classNam
       width={width}
       height={height}
       viewBox={`0 0 ${width} ${height}`}
+      preserveAspectRatio="none"
       className={className}
       aria-hidden="true"
     >
-      <path d={d} fill="none" stroke={STROKE[direction]} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />
+      <path
+        d={d}
+        fill="none"
+        stroke={STROKE[direction]}
+        strokeWidth={1.5}
+        strokeLinejoin="round"
+        strokeLinecap="round"
+        vectorEffect="non-scaling-stroke"
+      />
     </svg>
   );
 }

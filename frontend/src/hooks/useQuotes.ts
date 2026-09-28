@@ -23,9 +23,14 @@ export function useQuotes(symbols: string[]): QuotesState {
     let controller: AbortController | null = null;
     let timer: ReturnType<typeof setTimeout> | undefined;
 
-    const refresh = () => {
+    const refresh = (initial = false) => {
       clearTimeout(timer);
-      if (document.visibilityState === "hidden") return;
+      // Always load once, even in a background tab; after that, skip polls
+      // nobody can see (visibilitychange refreshes on return).
+      if (!initial && document.visibilityState === "hidden") {
+        timer = setTimeout(refresh, REFRESH_MS);
+        return;
+      }
       controller?.abort();
       controller = new AbortController();
       api
@@ -42,7 +47,7 @@ export function useQuotes(symbols: string[]): QuotesState {
           setState((prev) => ({ ...prev, status: prev.quotes.size ? "ready" : "error" }));
         })
         .finally(() => {
-          timer = setTimeout(refresh, REFRESH_MS);
+          timer = setTimeout(() => refresh(), REFRESH_MS);
         });
     };
 
@@ -50,7 +55,7 @@ export function useQuotes(symbols: string[]): QuotesState {
       if (document.visibilityState === "visible") refresh();
     };
 
-    refresh();
+    refresh(true);
     document.addEventListener("visibilitychange", onVisibility);
     return () => {
       clearTimeout(timer);

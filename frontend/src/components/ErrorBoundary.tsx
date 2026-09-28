@@ -1,4 +1,3 @@
-import { AlertTriangle } from "lucide-react";
 import { Component, type ErrorInfo, type ReactNode } from "react";
 
 interface ErrorBoundaryProps {
@@ -23,22 +22,28 @@ export default class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBo
   private reset = () => this.setState({ error: null });
 
   render() {
-    if (this.state.error) {
-      return (
-        <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-obsidian px-6 text-center">
-          <AlertTriangle className="h-10 w-10 text-bear" />
-          <h1 className="text-lg font-semibold text-primary">Something broke in the dashboard</h1>
-          <p className="max-w-md text-sm text-slate-text">{this.state.error.message}</p>
-          <button
-            onClick={this.reset}
-            className="rounded-md border border-slate-border bg-slate-card px-4 py-2 text-sm text-bull transition-colors hover:bg-bull/10"
-          >
-            Try again
-          </button>
-        </div>
-      );
-    }
+    if (!this.state.error) return this.props.children;
 
-    return this.props.children;
+    return (
+      <div role="alert" className="flex min-h-dvh items-center justify-center bg-canvas px-6">
+        <div className="panel w-full max-w-lg p-5 font-mono text-xs">
+          <p className="text-accent">&gt;_ bullscript</p>
+          <p className="mt-3 text-down">✗ the workspace crashed while rendering</p>
+          <p className="mt-1 break-words text-ink-2">{this.state.error.message}</p>
+          <div className="mt-5 flex gap-2">
+            <button type="button" onClick={this.reset} className="press rounded-md border border-line px-3 py-1.5 text-ink hover:bg-surface-raised">
+              try again
+            </button>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="press rounded-md border border-line px-3 py-1.5 text-ink-2 hover:bg-surface-raised"
+            >
+              reload
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
 }

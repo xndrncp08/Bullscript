@@ -8,6 +8,8 @@ export interface MarketSession {
   label: string;
   /** Wall-clock time in New York, e.g. "15:42:08". */
   time: string;
+  /** Calendar date in New York, YYYY-MM-DD - the date a live daily bar carries. */
+  date: string;
   weekday: string;
 }
 
@@ -27,6 +29,9 @@ const formatter = new Intl.DateTimeFormat("en-US", {
   timeZone: "America/New_York",
   hour12: false,
   weekday: "short",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
   hour: "2-digit",
   minute: "2-digit",
   second: "2-digit",
@@ -52,6 +57,14 @@ export function getMarketSession(at: Date = new Date()): MarketSession {
     session,
     label: LABELS[session],
     time: `${String(hour).padStart(2, "0")}:${parts.minute}:${parts.second}`,
+    date: `${parts.year}-${parts.month}-${parts.day}`,
     weekday,
   };
+}
+
+/** Whether a daily bar is still forming: it's dated today in New York and
+ * the market hasn't reached the end of after-hours trading. */
+export function isLiveBar(barDate: string, at: Date = new Date()): boolean {
+  const { date, session } = getMarketSession(at);
+  return barDate === date && session !== "closed";
 }

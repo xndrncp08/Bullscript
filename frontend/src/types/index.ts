@@ -90,7 +90,8 @@ export interface RetrainLogEntry {
   r2: number | null;
   skill: number | null;
   hit_rate: number | null;
-  psi: number | null;
+  /** Share of recent feature values outside the model's training range. */
+  ood: number | null;
   promoted: boolean;
   model_version: string;
 }
@@ -99,10 +100,15 @@ export interface DriftCheck {
   timestamp: string;
   drift_status: "stable" | "drift" | "unknown";
   action: "none" | "promoted" | "kept_incumbent";
-  psi: number | null;
+  /** Share of recent feature values outside the model's training range. */
+  ood: number | null;
   skill: number | null;
   hit_rate: number | null;
   rmse: number | null;
+  /** Skill on bars that arrived after the model's training window. */
+  live_skill: number | null;
+  live_hit_rate: number | null;
+  live_samples: number;
 }
 
 export interface ModelDiagnostics {
@@ -116,6 +122,9 @@ export interface ModelDiagnostics {
   train_samples: number;
   calibration_samples: number;
   holdout_samples: number;
+  /** Rows the deployed refit was trained on. */
+  fit_samples: number;
+  trees: number;
   rmse: number | null;
   mape: number | null;
   r2: number | null;
@@ -132,7 +141,7 @@ export interface ModelDiagnostics {
 export interface DiagnosticsResponse {
   generated_at: string;
   drift_skill_floor: number;
-  drift_psi_threshold: number;
+  drift_ood_threshold: number;
   models: ModelDiagnostics[];
 }
 
@@ -168,7 +177,7 @@ export interface RetrainResult {
   promoted: boolean;
   trigger: string;
   metrics: RetrainMetrics;
-  psi: number | null;
+  ood: number | null;
   version: string;
 }
 

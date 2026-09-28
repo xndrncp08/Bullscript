@@ -36,19 +36,6 @@ export default {
           ema20: token("series-ema20"),
           ema50: token("series-ema50"),
         },
-
-        // Legacy names used by the pre-terminal components.
-        obsidian: token("color-bg"),
-        "obsidian-deep": token("color-bg-deep"),
-        slate: {
-          card: token("color-card"),
-          border: token("color-border"),
-          text: token("color-text-secondary"),
-        },
-        primary: token("color-text-primary"),
-        bull: { DEFAULT: "#00E676", dark: "#00C853" },
-        bear: { DEFAULT: "#FF3B30", light: "#FF5252" },
-        cyan: { DEFAULT: "#00E5FF" },
       },
       fontFamily: {
         sans: ["Geist", "Inter", "system-ui", "sans-serif"],
@@ -60,13 +47,6 @@ export default {
       transitionTimingFunction: {
         out: "cubic-bezier(0.23, 1, 0.32, 1)",
         "in-out": "cubic-bezier(0.77, 0, 0.175, 1)",
-      },
-      backgroundImage: {
-        "bull-gradient": "linear-gradient(135deg, #00E676 0%, #00C853 100%)",
-      },
-      boxShadow: {
-        "glow-bull": "0 0 24px rgba(0, 230, 118, 0.25)",
-        "glow-cyan": "0 0 24px rgba(0, 229, 255, 0.25)",
       },
       keyframes: {
         "pulse-dot": {
