@@ -32,6 +32,11 @@ def fetch_price_history(symbol: str, lookback_days: int | None = None) -> pd.Dat
             "Volume": "volume",
         }
     )[["open", "high", "low", "close", "volume"]]
+    # Halted or partially reported sessions come back with NaN prices; they'd
+    # poison every rolling indicator downstream and aren't valid JSON either.
+    df = df.dropna(subset=["open", "high", "low", "close"])
+    if df.empty:
+        raise TickerNotFoundError(f"No price history found for symbol '{symbol}'")
     df.index = df.index.tz_localize(None)
     df.index.name = "date"
     return df

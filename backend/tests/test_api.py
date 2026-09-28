@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 from app.api.v1 import model as model_route
 from app.api.v1 import ticker as ticker_route
 from app.ml import model_store
+from app.ml.features import FEATURE_VERSION
 from main import app
 
 client = TestClient(app)
@@ -22,12 +23,18 @@ def mocked_chart(monkeypatch, synthetic_price_df):
 def mocked_prediction(monkeypatch):
     fake_result = {
         "symbol": "AAPL",
-        "model_version": "v1",
+        "as_of": "2024-01-01",
         "last_close": 187.32,
         "horizons": [
             {
                 "horizon": "5d",
-                "confidence": 0.82,
+                "horizon_days": 5,
+                "model_version": "v1",
+                "target_price": 188.1,
+                "expected_return": 0.0042,
+                "interval": 0.8,
+                "hit_rate": 0.56,
+                "skill": 0.03,
                 "points": [
                     {
                         "date": "2024-01-02",
@@ -96,7 +103,7 @@ def test_get_chart_404_for_unknown_symbol(monkeypatch):
 
     monkeypatch.setattr(ticker_route, "fetch_price_history", raise_not_found)
 
-    response = client.get("/api/v1/ticker/NOTAREALTICKER/chart")
+    response = client.get("/api/v1/ticker/ZZZZZZ/chart")
     assert response.status_code == 404
 
 
@@ -106,9 +113,13 @@ def test_get_prediction_returns_200_and_valid_schema(mocked_prediction):
 
     body = response.json()
     assert body["symbol"] == "AAPL"
-    assert body["model_version"] == "v1"
+    assert body["as_of"] == "2024-01-01"
     assert len(body["horizons"]) == 1
-    assert body["horizons"][0]["horizon"] == "5d"
+    horizon = body["horizons"][0]
+    assert horizon["horizon"] == "5d"
+    assert horizon["model_version"] == "v1"
+    assert horizon["interval"] == 0.8
+    assert horizon["hit_rate"] == 0.56
 
 
 def test_get_sentiment_returns_200_and_valid_schema(mocked_sentiment):
@@ -127,26 +138,108 @@ def test_get_diagnostics_returns_200_with_empty_models_when_untracked():
     assert response.json()["models"] == []
 
 
-def test_get_diagnostics_surfaces_tracked_model(monkeypatch):
-    record = model_store.ModelRecord(
-        symbol="AAPL",
-        horizon="5d",
-        version="v1",
-        trained_at=datetime.now(timezone.utc).isoformat(),
-        rmse=1.2,
-        mape=0.05,
-        r2=0.9,
-        feature_importances={"rsi_14": 0.4, "macd": 0.2},
-    )
-    model_store.save_model("AAPL", "5d", object(), record)
+def _save_record(symbol: str, horizon: str, **overrides):
+    fields = {
+        "symbol": symbol,
+        "horizon": horizon,
+        "version": "v1",
+        "trained_at": datetime.now(timezone.utc).isoformat(),
+        "rmse": 1.2,
+        "mape": 0.05,
+        "r2": 0.9,
+        "feature_importances": {"rsi_14": 0.4, "dist_ema_20": 0.2},
+        "feature_version": FEATURE_VERSION,
+        "target": "log_return",
+        "skill": 0.04,
+        "hit_rate": 0.57,
+        "residual_std": 0.03,
+    }
+    fields.update(overrides)
+    model_store.save_model(symbol, horizon, object(), model_store.ModelRecord(**fields))
+
+
+def test_get_diagnostics_surfaces_tracked_model():
+    _save_record("AAPL", "5d")
 
     response = client.get("/api/v1/model/diagnostics")
     assert response.status_code == 200
 
     body = response.json()
+    assert body["drift_skill_floor"] < 0
     assert len(body["models"]) == 1
-    assert body["models"][0]["symbol"] == "AAPL"
-    assert body["models"][0]["rmse"] == 1.2
+    model = body["models"][0]
+    assert model["symbol"] == "AAPL"
+    assert model["rmse"] == 1.2
+    assert model["skill"] == 0.04
+    assert model["hit_rate"] == 0.57
+    assert model["compatible"] is True
+    assert model["last_check"] is None
+
+
+def test_get_diagnostics_filters_by_symbol_and_orders_by_horizon():
+    _save_record("AAPL", "30d")
+    _save_record("AAPL", "5d")
+    _save_record("MSFT", "5d")
+
+    body = client.get("/api/v1/model/diagnostics", params={"symbol": "aapl"}).json()
+
+    assert [(m["symbol"], m["horizon"]) for m in body["models"]] == [
+        ("AAPL", "5d"),
+        ("AAPL", "30d"),
+    ]
+
+
+def test_get_diagnostics_flags_legacy_models_as_incompatible():
+    _save_record("AAPL", "5d", feature_version=1, target="price")
+
+    model = client.get("/api/v1/model/diagnostics").json()["models"][0]
+    assert model["compatible"] is False
+
+
+def test_get_diagnostics_includes_the_latest_drift_check():
+    _save_record("AAPL", "5d")
+    model_store.save_check(
+        "AAPL",
+        "5d",
+        {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "drift_status": "stable",
+            "action": "none",
+            "psi": 0.07,
+            "skill": 0.04,
+            "hit_rate": 0.57,
+            "rmse": 1.2,
+        },
+    )
+
+    check = client.get("/api/v1/model/diagnostics").json()["models"][0]["last_check"]
+    assert check["drift_status"] == "stable"
+    assert check["psi"] == 0.07
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/api/v1/ticker/AAPL;DROP/chart",
+        "/api/v1/ticker/ABCDEFGHIJKLM/prediction",
+        "/api/v1/ticker/%3Cscript%3E/sentiment",
+    ],
+)
+def test_malformed_symbols_are_rejected(path):
+    assert client.get(path).status_code == 422
+
+
+def test_malformed_symbol_in_retrain_body_is_rejected():
+    response = client.post("/api/v1/model/retrain", json={"symbol": "../etc"})
+    assert response.status_code == 422
+
+
+def test_retrain_with_unknown_horizon_is_rejected(monkeypatch):
+    from app.ml import pipeline
+
+    monkeypatch.setattr(pipeline, "fetch_price_history", lambda symbol: None)
+    response = client.post("/api/v1/model/retrain", json={"symbol": "AAPL", "horizons": ["7d"]})
+    assert response.status_code == 422
 
 
 def test_post_retrain_triggers_pipeline_and_returns_results(monkeypatch):
@@ -169,7 +262,7 @@ def test_post_retrain_404_for_unknown_symbol(monkeypatch):
 
     monkeypatch.setattr(model_route, "run_full_retrain", raise_not_found)
 
-    response = client.post("/api/v1/model/retrain", json={"symbol": "NOTAREALTICKER"})
+    response = client.post("/api/v1/model/retrain", json={"symbol": "ZZZZZZ"})
     assert response.status_code == 404
 
 

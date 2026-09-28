@@ -116,7 +116,7 @@ export default function ModelDiagnostics({ diagnostics, loading, onRetrain }: Mo
                 <span className={entry.promoted ? "text-bull" : "text-slate-text"}>
                   {entry.promoted ? "PROMOTED" : "no-op"}
                 </span>{" "}
-                {entry.trigger} rmse={entry.rmse.toFixed(4)} v{entry.model_version}
+                {entry.trigger} rmse={entry.rmse?.toFixed(4) ?? "—"} {entry.model_version}
               </p>
             ))}
             {activeModel.retrain_log.length === 0 && (

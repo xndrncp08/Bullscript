@@ -1,42 +1,82 @@
 from datetime import datetime, timezone
+from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 
 from app.config import settings
 from app.core.limiter import limiter
 from app.ml import model_store
 from app.ml.pipeline import run_full_retrain
-from app.models.schemas import DiagnosticsResponse, ModelDiagnostics, RetrainRequest
+from app.models.schemas import (
+    SYMBOL_PATTERN,
+    DiagnosticsResponse,
+    ModelDiagnostics,
+    RetrainRequest,
+)
 from app.services.data_fetcher import TickerNotFoundError
 
 router = APIRouter(prefix="/model", tags=["model"])
 
+LOG_ENTRIES_PER_MODEL = 20
+
+
+def _horizon_order(horizon: str) -> int:
+    return settings.forecast_horizons.get(horizon, 10_000)
+
 
 @router.get("/diagnostics", response_model=DiagnosticsResponse)
 @limiter.limit("60/minute")
-def get_diagnostics(request: Request):
+def get_diagnostics(
+    request: Request,
+    symbol: Annotated[str | None, Query(pattern=SYMBOL_PATTERN)] = None,
+):
+    pairs = model_store.list_tracked_pairs()
+    if symbol:
+        pairs = [(s, h) for s, h in pairs if s == symbol.upper()]
+    pairs.sort(key=lambda pair: (pair[0], _horizon_order(pair[1])))
+
+    log = model_store.read_retrain_log(symbol=symbol, limit=1000)
+
     models = []
-    for symbol, horizon in model_store.list_tracked_pairs():
-        meta = model_store.load_metadata(symbol, horizon)
-        record = meta["record"] if meta else {}
-        log = model_store.read_retrain_log(symbol=symbol, limit=20)
-        log = [entry for entry in log if entry["horizon"] == horizon]
+    for pair_symbol, horizon in pairs:
+        meta = model_store.load_metadata(pair_symbol, horizon)
+        if meta is None:
+            continue
+        record = model_store.load_record(pair_symbol, horizon)
+        entries = [e for e in log if e["symbol"] == pair_symbol and e["horizon"] == horizon]
 
         models.append(
             ModelDiagnostics(
-                symbol=symbol,
+                symbol=pair_symbol,
                 horizon=horizon,
-                model_version=record.get("version", "unset"),
-                trained_at=record.get("trained_at"),
-                rmse=record.get("rmse"),
-                mape=record.get("mape"),
-                r2=record.get("r2"),
-                feature_importances=record.get("feature_importances", {}),
-                retrain_log=log,
+                model_version=record.version,
+                compatible=model_store.is_compatible(record),
+                target=record.target,
+                trained_at=record.trained_at,
+                train_end=record.train_end,
+                train_samples=record.train_samples,
+                calibration_samples=record.calibration_samples,
+                holdout_samples=record.holdout_samples,
+                rmse=record.rmse,
+                mape=record.mape,
+                r2=record.r2,
+                skill=record.skill,
+                hit_rate=record.hit_rate,
+                naive_rmse=record.naive_rmse,
+                residual_std=record.residual_std,
+                shrinkage=record.shrinkage,
+                feature_importances=record.feature_importances,
+                last_check=meta.get("last_check"),
+                retrain_log=entries[:LOG_ENTRIES_PER_MODEL],
             )
         )
 
-    return DiagnosticsResponse(generated_at=datetime.now(timezone.utc), models=models)
+    return DiagnosticsResponse(
+        generated_at=datetime.now(timezone.utc),
+        drift_skill_floor=settings.drift_skill_floor,
+        drift_psi_threshold=settings.drift_psi_threshold,
+        models=models,
+    )
 
 
 @router.post("/retrain")

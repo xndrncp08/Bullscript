@@ -18,30 +18,49 @@ const chart: ChartResponse = {
   indicators: [],
 };
 
+const horizonDefaults = {
+  model_version: "v3",
+  interval: 0.8,
+  skill: 0.02,
+  shrinkage: 1,
+};
+
 const prediction: PredictionResponse = {
   symbol: "AAPL",
   generated_at: "2024-01-11T00:00:00Z",
-  model_version: "v3",
+  as_of: "2024-01-10",
   last_close: 190.5,
   horizons: [
     {
+      ...horizonDefaults,
       horizon: "5d",
-      confidence: 0.88,
+      horizon_days: 5,
+      hit_rate: 0.88,
+      target_price: 192,
+      expected_return: 0.0079,
       points: [
         { date: "2024-01-12", predicted_close: 191, lower_bound: 186, upper_bound: 196 },
         { date: "2024-01-13", predicted_close: 192, lower_bound: 187, upper_bound: 197 },
       ],
     },
     {
+      ...horizonDefaults,
       horizon: "14d",
-      confidence: 0.74,
+      horizon_days: 14,
+      hit_rate: 0.74,
+      target_price: 193,
+      expected_return: 0.0131,
       points: [
         { date: "2024-01-12", predicted_close: 193, lower_bound: 180, upper_bound: 206 },
       ],
     },
     {
+      ...horizonDefaults,
       horizon: "30d",
-      confidence: 0.6,
+      horizon_days: 30,
+      hit_rate: 0.6,
+      target_price: 198,
+      expected_return: 0.0394,
       points: [
         { date: "2024-01-12", predicted_close: 198, lower_bound: 170, upper_bound: 226 },
       ],
@@ -75,20 +94,20 @@ describe("PredictionChart", () => {
     expect(areaPaths.length).toBeGreaterThan(0);
   });
 
-  it("switches forecast horizon and updates displayed confidence", async () => {
+  it("switches forecast horizon and updates the displayed hit rate", async () => {
     const user = userEvent.setup();
     render(<PredictionChart chart={chart} prediction={prediction} loading={false} />);
 
     const horizonGroup = screen.getByRole("group", { name: /forecast horizon/i });
 
     // default horizon is 14d
-    expect(screen.getByText(/confidence: 74.0%/i)).toBeInTheDocument();
+    expect(screen.getByText(/hit rate: 74.0%/i)).toBeInTheDocument();
 
     await user.click(within(horizonGroup).getByRole("button", { name: "30D" }));
-    expect(screen.getByText(/confidence: 60.0%/i)).toBeInTheDocument();
+    expect(screen.getByText(/hit rate: 60.0%/i)).toBeInTheDocument();
 
     await user.click(within(horizonGroup).getByRole("button", { name: "5D" }));
-    expect(screen.getByText(/confidence: 88.0%/i)).toBeInTheDocument();
+    expect(screen.getByText(/hit rate: 88.0%/i)).toBeInTheDocument();
   });
 
   it("displays the active model version", () => {

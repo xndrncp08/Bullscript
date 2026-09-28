@@ -1,15 +1,19 @@
-"""Model persistence, versioning, and retrain-log storage on disk."""
+"""Model persistence, versioning, drift-check state, and retrain-log storage."""
 
 from __future__ import annotations
 
 import json
-from dataclasses import asdict, dataclass, field
+import re
+from dataclasses import asdict, dataclass, field, fields
 from datetime import datetime, timezone
 from pathlib import Path
 
 import joblib
 
 from app.config import settings
+from app.ml.features import FEATURE_VERSION
+
+_SAFE_KEY = re.compile(r"^[A-Z0-9.^=\-]+_[0-9]+d$")
 
 
 @dataclass
@@ -22,10 +26,35 @@ class ModelRecord:
     mape: float
     r2: float
     feature_importances: dict[str, float] = field(default_factory=dict)
+    # Fields below were added with feature version 2. Records written before
+    # then load with these defaults and are flagged incompatible.
+    feature_version: int = 1
+    target: str = "price"
+    skill: float | None = None
+    hit_rate: float | None = None
+    naive_rmse: float | None = None
+    residual_std: float | None = None
+    shrinkage: float | None = None
+    train_samples: int = 0
+    calibration_samples: int = 0
+    holdout_samples: int = 0
+    train_end: str | None = None
+    feature_reference: dict[str, dict] = field(default_factory=dict)
+
+
+_RECORD_FIELDS = {f.name for f in fields(ModelRecord)}
+
+
+def is_compatible(record: ModelRecord | None) -> bool:
+    return record is not None and record.feature_version == FEATURE_VERSION
 
 
 def _key(symbol: str, horizon: str) -> str:
-    return f"{symbol.upper()}_{horizon}"
+    key = f"{symbol.upper()}_{horizon}"
+    # Keys become file names; refuse anything that could escape the model dir.
+    if not _SAFE_KEY.match(key):
+        raise ValueError(f"Unsafe model key: {key!r}")
+    return key
 
 
 def _model_path(symbol: str, horizon: str, version: str) -> Path:
@@ -51,7 +80,7 @@ def next_version(symbol: str, horizon: str) -> str:
 def save_model(symbol: str, horizon: str, model, record: ModelRecord) -> Path:
     path = _model_path(symbol, horizon, record.version)
     joblib.dump(model, path)
-    metadata = {"record": asdict(record)}
+    metadata = {"record": asdict(record), "last_check": None}
     _metadata_path(symbol, horizon).write_text(json.dumps(metadata, indent=2))
     return path
 
@@ -63,35 +92,56 @@ def load_metadata(symbol: str, horizon: str) -> dict | None:
     return json.loads(path.read_text())
 
 
+def _record_from_meta(meta: dict) -> ModelRecord:
+    raw = {k: v for k, v in meta["record"].items() if k in _RECORD_FIELDS}
+    return ModelRecord(**raw)
+
+
+def load_record(symbol: str, horizon: str) -> ModelRecord | None:
+    meta = load_metadata(symbol, horizon)
+    return _record_from_meta(meta) if meta else None
+
+
 def load_active_model(symbol: str, horizon: str):
     meta = load_metadata(symbol, horizon)
     if meta is None:
         return None, None
-    record = ModelRecord(**meta["record"])
+    record = _record_from_meta(meta)
     path = _model_path(symbol, horizon, record.version)
     if not path.exists():
         return None, record
     return joblib.load(path), record
 
 
+def save_check(symbol: str, horizon: str, check: dict) -> None:
+    """Persist the outcome of the most recent drift check alongside the model."""
+    meta = load_metadata(symbol, horizon)
+    if meta is None:
+        return
+    meta["last_check"] = check
+    _metadata_path(symbol, horizon).write_text(json.dumps(meta, indent=2))
+
+
 def append_retrain_log(
     symbol: str,
     horizon: str,
     trigger: str,
-    rmse: float,
-    mape: float,
-    r2: float,
+    metrics: dict,
     promoted: bool,
     model_version: str,
+    psi: float | None = None,
 ) -> None:
     entry = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "symbol": symbol.upper(),
         "horizon": horizon,
         "trigger": trigger,
-        "rmse": rmse,
-        "mape": mape,
-        "r2": r2,
+        "rmse": metrics.get("rmse"),
+        "mape": metrics.get("mape"),
+        "r2": metrics.get("r2"),
+        "skill": metrics.get("skill"),
+        "hit_rate": metrics.get("hit_rate"),
+        "psi": psi,
         "promoted": promoted,
         "model_version": model_version,
     }
@@ -111,7 +161,7 @@ def read_retrain_log(symbol: str | None = None, limit: int = 100) -> list[dict]:
 
 def list_tracked_pairs() -> list[tuple[str, str]]:
     pairs = []
-    for meta_file in settings.model_dir.glob("*_meta.json"):
+    for meta_file in sorted(settings.model_dir.glob("*_meta.json")):
         stem = meta_file.stem.removesuffix("_meta")
         symbol, horizon = stem.rsplit("_", 1)
         pairs.append((symbol, horizon))
