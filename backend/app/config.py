@@ -22,11 +22,11 @@ class Settings(BaseSettings):
     forecast_interval: float = 0.8
 
     # Self-training thresholds. A model is considered drifted when its holdout
-    # skill against a random walk drops below the floor (it's doing meaningfully
-    # worse than "price stays put"), or when the mean PSI of its input features
-    # over the recent window exceeds the threshold.
+    # skill against a random walk on bars it hasn't seen drops below the floor
+    # (meaningfully worse than "price stays put"), or when more than this share
+    # of recent feature values fall outside the range it was trained on.
     drift_skill_floor: float = -0.10
-    drift_psi_threshold: float = 0.2
+    drift_ood_threshold: float = 0.1
     retrain_check_interval_minutes: int = 60
     lookback_days: int = 1095
 

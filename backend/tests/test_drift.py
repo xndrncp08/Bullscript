@@ -2,53 +2,57 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from app.ml.drift import build_reference, population_stability_index, score_drift
+from app.ml.drift import build_reference, score_drift
 
 
 @pytest.fixture
-def reference_frame():
+def training():
     rng = np.random.default_rng(7)
     return pd.DataFrame({"a": rng.normal(0, 1, 2000), "b": rng.uniform(0, 1, 2000)})
 
 
-def test_psi_is_zero_for_identical_distributions():
-    assert population_stability_index([0.2] * 5, [0.2] * 5) == pytest.approx(0.0)
-
-
-def test_psi_grows_with_distribution_shift():
-    small = population_stability_index([0.2] * 5, [0.25, 0.2, 0.2, 0.2, 0.15])
-    large = population_stability_index([0.2] * 5, [0.6, 0.1, 0.1, 0.1, 0.1])
-    assert 0 < small < large
-
-
-def test_reference_stores_quintile_edges_and_expected_shares(reference_frame):
-    reference = build_reference(reference_frame)
+def test_reference_stores_the_central_99_percent_range(training):
+    reference = build_reference(training)
 
     assert set(reference) == {"a", "b"}
-    assert len(reference["a"]["edges"]) == 4
-    assert sum(reference["a"]["expected"]) == pytest.approx(1.0)
-    assert all(share == pytest.approx(0.2, abs=0.01) for share in reference["a"]["expected"])
+    lo, hi = reference["a"]["lo"], reference["a"]["hi"]
+    assert lo == pytest.approx(np.quantile(training["a"], 0.005))
+    assert hi == pytest.approx(np.quantile(training["a"], 0.995))
 
 
-def test_same_regime_scores_as_stable(reference_frame):
-    reference = build_reference(reference_frame)
+def test_recent_values_inside_the_training_range_score_near_zero(training):
+    reference = build_reference(training)
     rng = np.random.default_rng(99)
     recent = pd.DataFrame({"a": rng.normal(0, 1, 60), "b": rng.uniform(0, 1, 60)})
 
-    assert score_drift(reference, recent)["psi"] < 0.2
+    assert score_drift(reference, recent)["ood"] < 0.05
 
 
-def test_shifted_regime_scores_as_drift(reference_frame):
-    reference = build_reference(reference_frame)
+def test_a_regime_the_model_has_never_seen_scores_high(training):
+    reference = build_reference(training)
     rng = np.random.default_rng(99)
-    recent = pd.DataFrame({"a": rng.normal(2.5, 1, 60), "b": rng.uniform(0.7, 1.0, 60)})
+    recent = pd.DataFrame({"a": rng.normal(5, 1, 60), "b": rng.uniform(1.5, 2, 60)})
 
     result = score_drift(reference, recent)
-    assert result["psi"] > 0.2
+    assert result["ood"] > 0.9
     assert set(result["per_feature"]) == {"a", "b"}
 
 
-def test_constant_feature_does_not_break_reference():
-    frame = pd.DataFrame({"flat": np.ones(100)})
-    reference = build_reference(frame)
-    assert score_drift(reference, frame.iloc[:30])["psi"] == pytest.approx(0.0)
+def test_a_narrow_slice_of_a_familiar_range_is_not_drift(training):
+    """The failure mode that ruled out PSI: slow features sit in one corner of
+    their range for weeks. That's not drift if the model has seen that corner."""
+    reference = build_reference(training)
+    corner = training[training["a"] > 1.5].head(60)
+
+    assert score_drift(reference, corner)["ood"] < 0.1
+
+
+def test_the_score_averages_over_features(training):
+    reference = build_reference(training)
+    recent = pd.DataFrame({"a": np.full(10, 99.0), "b": np.full(10, 0.5)})
+    assert score_drift(reference, recent)["ood"] == pytest.approx(0.5)
+
+
+def test_references_without_range_bounds_are_unscorable():
+    legacy = {"a": {"edges": [0.1, 0.2], "expected": [0.3, 0.3, 0.4]}}
+    assert score_drift(legacy, pd.DataFrame({"a": [0.1, 0.2]})) is None

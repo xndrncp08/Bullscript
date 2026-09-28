@@ -103,7 +103,7 @@ class RetrainLogEntry(_APIModel):
     r2: float | None = None
     skill: float | None = None
     hit_rate: float | None = None
-    psi: float | None = None
+    ood: float | None = None
     promoted: bool
     model_version: str
 
@@ -112,10 +112,17 @@ class DriftCheck(_APIModel):
     timestamp: datetime
     drift_status: str = Field(description="stable | drift | unknown")
     action: str = Field(description="none | promoted | kept_incumbent")
-    psi: float | None = None
+    ood: float | None = Field(
+        default=None, description="Share of recent feature values outside the training range"
+    )
     skill: float | None = None
     hit_rate: float | None = None
     rmse: float | None = None
+    live_skill: float | None = Field(
+        default=None, description="Skill on bars that arrived after the model's training window"
+    )
+    live_hit_rate: float | None = None
+    live_samples: int = 0
 
 
 class ModelDiagnostics(_APIModel):
@@ -129,6 +136,8 @@ class ModelDiagnostics(_APIModel):
     train_samples: int = 0
     calibration_samples: int = 0
     holdout_samples: int = 0
+    fit_samples: int = Field(default=0, description="Rows the deployed refit was trained on")
+    trees: int = 0
     rmse: float | None
     mape: float | None
     r2: float | None
@@ -149,7 +158,7 @@ class ModelDiagnostics(_APIModel):
 class DiagnosticsResponse(_APIModel):
     generated_at: datetime
     drift_skill_floor: float
-    drift_psi_threshold: float
+    drift_ood_threshold: float
     models: list[ModelDiagnostics]
 
 

@@ -1,11 +1,17 @@
-"""Feature-distribution drift detection via the Population Stability Index.
+"""Feature drift, measured as extrapolation risk.
 
-At training time each feature's distribution is summarised as quantile bin
-edges plus the share of training samples in each bin. At check time the most
-recent window of feature rows is binned on the same edges and compared.
+Tree ensembles don't extrapolate: when an input moves outside the range seen
+in training, every split on it saturates and the model is guessing from its
+edge. So the drift signal is the share of recent feature values that fall
+outside the central 99% of what the deployed model was fit on, averaged over
+features ("out-of-range share").
 
-Rule of thumb for PSI: < 0.1 stable, 0.1-0.2 moderate shift, > 0.2 the market
-regime the model learned from no longer describes the data it's scoring.
+Why not PSI: these features are slow-moving and autocorrelated (ATR %,
+distance from the 200-day EMA, realised vol), so any short recent window
+covers only a slice of their historical range. Measured on real data, 60-bar
+windows drawn from the training set itself score a median PSI of ~0.9-1.2 -
+the usual 0.2 threshold would flag drift permanently. The out-of-range share
+for the same windows is under 1%.
 """
 
 from __future__ import annotations
@@ -13,45 +19,34 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-PSI_BINS = 5
-PSI_WINDOW = 60
-_EPS = 1e-4
+DRIFT_WINDOW = 60
+TAIL = 0.005
 
 
-def _bin_proportions(values: np.ndarray, edges: np.ndarray) -> np.ndarray:
-    idx = np.searchsorted(edges, values, side="right")
-    counts = np.bincount(idx, minlength=len(edges) + 1)
-    return counts / max(len(values), 1)
-
-
-def build_reference(X_train: pd.DataFrame, bins: int = PSI_BINS) -> dict[str, dict]:
-    quantiles = np.linspace(0, 1, bins + 1)[1:-1]
+def build_reference(X_train: pd.DataFrame) -> dict[str, dict]:
+    """Per-feature bounds of the central 99% of the training distribution."""
     reference = {}
     for column in X_train.columns:
         values = X_train[column].to_numpy(dtype=float)
-        edges = np.unique(np.quantile(values, quantiles))
-        reference[column] = {
-            "edges": edges.tolist(),
-            "expected": _bin_proportions(values, edges).tolist(),
-        }
+        lo, hi = np.quantile(values, [TAIL, 1 - TAIL])
+        reference[column] = {"lo": float(lo), "hi": float(hi)}
     return reference
 
 
-def population_stability_index(expected, actual) -> float:
-    e = np.clip(np.asarray(expected, dtype=float), _EPS, None)
-    a = np.clip(np.asarray(actual, dtype=float), _EPS, None)
-    return float(np.sum((a - e) * np.log(a / e)))
+def score_drift(reference: dict[str, dict], X_recent: pd.DataFrame) -> dict | None:
+    """Share of recent values outside each feature's training range.
 
-
-def score_drift(reference: dict[str, dict], X_recent: pd.DataFrame) -> dict:
+    Returns None when the reference predates range bounds (older models), so
+    callers can tell "no drift" from "can't tell".
+    """
     per_feature: dict[str, float] = {}
-    for column, ref in reference.items():
-        if column not in X_recent.columns:
+    for column, bounds in reference.items():
+        if column not in X_recent.columns or "lo" not in bounds:
             continue
-        actual = _bin_proportions(
-            X_recent[column].to_numpy(dtype=float), np.asarray(ref["edges"], dtype=float)
-        )
-        per_feature[column] = population_stability_index(ref["expected"], actual)
+        values = X_recent[column].to_numpy(dtype=float)
+        outside = (values < bounds["lo"]) | (values > bounds["hi"])
+        per_feature[column] = float(outside.mean()) if len(values) else 0.0
 
-    mean_psi = float(np.mean(list(per_feature.values()))) if per_feature else 0.0
-    return {"psi": mean_psi, "per_feature": per_feature}
+    if not per_feature:
+        return None
+    return {"ood": float(np.mean(list(per_feature.values()))), "per_feature": per_feature}
