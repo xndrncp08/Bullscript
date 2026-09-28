@@ -1,18 +1,67 @@
-"""FinBERT-based news sentiment scoring."""
+"""FinBERT-based news sentiment scoring, with an offline keyword fallback."""
 
 from __future__ import annotations
 
+import logging
+import re
 from datetime import datetime, timezone
 from functools import lru_cache
 
 from app.config import settings
 
+logger = logging.getLogger("bullscript.sentiment")
+
 _LABEL_MAP = {0: "positive", 1: "negative", 2: "neutral"}
 
+_POSITIVE_WORDS = {
+    "beat", "beats", "beating", "surge", "surges", "surging", "soar", "soars",
+    "rally", "rallies", "gain", "gains", "growth", "record", "upgrade",
+    "upgraded", "outperform", "strong", "profit", "profits", "bullish",
+    "rise", "rises", "rising", "jump", "jumps", "boost", "boosts", "win",
+    "wins", "expand", "expands", "expansion", "buy", "buyback",
+}
 
-@lru_cache(maxsize=1)
-def _get_pipeline():
-    """Lazily load the Hugging Face FinBERT pipeline on first use."""
+_NEGATIVE_WORDS = {
+    "miss", "misses", "missed", "plunge", "plunges", "plunging", "crash",
+    "crashes", "fall", "falls", "falling", "drop", "drops", "dropping",
+    "loss", "losses", "downgrade", "downgraded", "underperform", "weak",
+    "bearish", "probe", "lawsuit", "recall", "decline", "declines", "cut",
+    "cuts", "warning", "warns", "layoff", "layoffs", "investigation",
+    "antitrust", "fraud", "sell-off", "selloff",
+}
+
+
+def _mock_score(text: str) -> list[dict]:
+    """Deterministic keyword-based sentiment scorer for offline development.
+
+    Used only when the FinBERT pipeline can't be loaded (no network access
+    to Hugging Face, model not cached, etc.) so the app stays usable end to
+    end without requiring real model weights.
+    """
+    words = re.findall(r"[a-z']+", text.lower())
+    pos_hits = sum(1 for w in words if w in _POSITIVE_WORDS)
+    neg_hits = sum(1 for w in words if w in _NEGATIVE_WORDS)
+
+    raw_positive = 0.2 + 0.6 * pos_hits
+    raw_negative = 0.2 + 0.6 * neg_hits
+    raw_neutral = 0.3
+    total = raw_positive + raw_negative + raw_neutral
+
+    return [
+        {"label": "positive", "score": raw_positive / total},
+        {"label": "neutral", "score": raw_neutral / total},
+        {"label": "negative", "score": raw_negative / total},
+    ]
+
+
+def _mock_pipeline(texts: list[str]) -> list[list[dict]]:
+    return [_mock_score(t) for t in texts]
+
+
+def _load_real_pipeline():
+    """Load the actual Hugging Face FinBERT pipeline. Split out from
+    _get_pipeline so tests can force the fallback path deterministically,
+    independent of whether transformers/torch happen to be installed."""
     from transformers import (
         AutoModelForSequenceClassification,
         AutoTokenizer,
@@ -30,6 +79,24 @@ def _get_pipeline():
         top_k=None,
         truncation=True,
     )
+
+
+@lru_cache(maxsize=1)
+def _get_pipeline():
+    """Lazily load the Hugging Face FinBERT pipeline on first use.
+
+    Falls back to a deterministic keyword-based mock scorer if the model
+    can't be loaded (offline dev, no cached weights, Hugging Face Hub
+    unreachable), so /sentiment stays functional without real inference.
+    """
+    try:
+        return _load_real_pipeline()
+    except Exception as exc:
+        logger.warning(
+            "FinBERT pipeline unavailable (%s); falling back to offline mock sentiment.",
+            exc,
+        )
+        return _mock_pipeline
 
 
 def score_headlines(headlines: list[dict]) -> list[dict]:

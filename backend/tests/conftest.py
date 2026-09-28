@@ -3,6 +3,7 @@ import pandas as pd
 import pytest
 
 from app.config import settings
+from app.core.limiter import limiter
 
 
 @pytest.fixture
@@ -37,6 +38,16 @@ def isolated_model_dir(tmp_path, monkeypatch):
     model_dir.mkdir()
     monkeypatch.setattr(settings, "model_dir", model_dir)
     yield model_dir
+
+
+@pytest.fixture(autouse=True)
+def reset_rate_limiter():
+    """Every request in tests originates from the same client host, so the
+    rate limiter's quota must be cleared between tests to keep them
+    independent."""
+    limiter.reset()
+    yield
+    limiter.reset()
 
 
 @pytest.fixture

@@ -68,3 +68,44 @@ def test_analyze_symbol_sentiment_end_to_end(monkeypatch, sample_headlines):
     assert set(result.keys()) == {"generated_at", "weighted_score", "label", "headlines"}
     assert len(result["headlines"]) == 3
     assert isinstance(result["weighted_score"], float)
+
+
+def test_mock_score_flags_positive_keywords_higher():
+    scores = {s["label"]: s["score"] for s in sentiment._mock_score(
+        "Company beats earnings and surges to a record high"
+    )}
+    assert scores["positive"] > scores["negative"]
+
+
+def test_mock_score_flags_negative_keywords_higher():
+    scores = {s["label"]: s["score"] for s in sentiment._mock_score(
+        "Company misses estimates amid fraud probe and lawsuit"
+    )}
+    assert scores["negative"] > scores["positive"]
+
+
+def test_mock_score_neutral_headline_has_no_dominant_label():
+    scores = {s["label"]: s["score"] for s in sentiment._mock_score(
+        "Quarterly report scheduled for next Tuesday"
+    )}
+    assert scores["positive"] == scores["negative"]
+
+
+def test_mock_pipeline_scores_each_input_text():
+    results = sentiment._mock_pipeline(["great quarter, profits surge", "missed estimates"])
+    assert len(results) == 2
+    for result in results:
+        labels = {s["label"] for s in result}
+        assert labels == {"positive", "neutral", "negative"}
+
+
+def test_get_pipeline_falls_back_to_mock_when_real_loader_fails(monkeypatch):
+    sentiment._get_pipeline.cache_clear()
+    monkeypatch.setattr(
+        sentiment, "_load_real_pipeline", lambda: (_ for _ in ()).throw(RuntimeError("no network"))
+    )
+
+    clf = sentiment._get_pipeline()
+
+    assert clf is sentiment._mock_pipeline
+    sentiment._get_pipeline.cache_clear()

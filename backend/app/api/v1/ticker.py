@@ -1,7 +1,8 @@
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 
+from app.core.limiter import limiter
 from app.ml.features import build_feature_frame
 from app.ml.forecaster import generate_all_forecasts
 from app.ml.sentiment import analyze_symbol_sentiment
@@ -16,7 +17,8 @@ router = APIRouter(prefix="/ticker", tags=["ticker"])
 
 
 @router.get("/{symbol}/chart", response_model=ChartResponse)
-def get_chart(symbol: str):
+@limiter.limit("30/minute")
+def get_chart(request: Request, symbol: str):
     try:
         price_df = fetch_price_history(symbol)
     except TickerNotFoundError as exc:
@@ -59,7 +61,8 @@ def get_chart(symbol: str):
 
 
 @router.get("/{symbol}/prediction", response_model=PredictionResponse)
-def get_prediction(symbol: str):
+@limiter.limit("15/minute")
+def get_prediction(request: Request, symbol: str):
     try:
         result = generate_all_forecasts(symbol)
     except TickerNotFoundError as exc:
@@ -77,7 +80,8 @@ def get_prediction(symbol: str):
 
 
 @router.get("/{symbol}/sentiment", response_model=SentimentResponse)
-def get_sentiment(symbol: str):
+@limiter.limit("15/minute")
+def get_sentiment(request: Request, symbol: str):
     headlines = fetch_recent_news(symbol)
     result = analyze_symbol_sentiment(headlines)
     return SentimentResponse(symbol=symbol.upper(), **result)

@@ -1,17 +1,20 @@
 from datetime import datetime, timezone
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, Request
 
 from app.config import settings
+from app.core.limiter import limiter
 from app.ml import model_store
 from app.ml.pipeline import run_full_retrain
 from app.models.schemas import DiagnosticsResponse, ModelDiagnostics, RetrainRequest
+from app.services.data_fetcher import TickerNotFoundError
 
 router = APIRouter(prefix="/model", tags=["model"])
 
 
 @router.get("/diagnostics", response_model=DiagnosticsResponse)
-def get_diagnostics():
+@limiter.limit("60/minute")
+def get_diagnostics(request: Request):
     models = []
     for symbol, horizon in model_store.list_tracked_pairs():
         meta = model_store.load_metadata(symbol, horizon)
@@ -37,7 +40,13 @@ def get_diagnostics():
 
 
 @router.post("/retrain")
-def trigger_retrain(payload: RetrainRequest):
+@limiter.limit("5/minute")
+def trigger_retrain(request: Request, payload: RetrainRequest):
     horizons = payload.horizons or list(settings.forecast_horizons.keys())
-    results = run_full_retrain(payload.symbol, horizons)
+    try:
+        results = run_full_retrain(payload.symbol, horizons)
+    except TickerNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     return {"symbol": payload.symbol.upper(), "results": results}
