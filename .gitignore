@@ -10,6 +10,8 @@ venv/
 # ML artifacts
 backend/data/models/*.joblib
 backend/data/models/*.pkl
+backend/data/models/*_meta.json
+backend/data/models/retrain_log.jsonl
 backend/data/*.db
 backend/data/cache/
 !backend/data/models/.gitkeep

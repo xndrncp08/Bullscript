@@ -1,5 +1,12 @@
 from contextlib import asynccontextmanager
 
+# Import torch before xgboost (transitively imported by app.api.v1.router) is
+# ever loaded. On macOS, XGBoost's bundled libomp initializing first and
+# PyTorch's OpenMP runtime initializing afterward segfaults the process the
+# first time a sentiment request lazily loads the FinBERT pipeline. Loading
+# torch first avoids the conflict regardless of which endpoint is hit first.
+import torch  # noqa: F401
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
