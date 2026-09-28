@@ -1,7 +1,8 @@
 from fastapi import APIRouter
 
-from app.api.v1 import model, ticker
+from app.api.v1 import market, model, ticker
 
 api_router = APIRouter(prefix="/api/v1")
 api_router.include_router(ticker.router)
 api_router.include_router(model.router)
+api_router.include_router(market.router)

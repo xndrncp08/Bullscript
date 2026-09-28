@@ -156,6 +156,22 @@ class DiagnosticsResponse(_APIModel):
 SYMBOL_PATTERN = r"^[A-Za-z0-9.^=\-]{1,12}$"
 
 
+class Quote(_APIModel):
+    symbol: str
+    price: float
+    previous_close: float
+    change: float
+    change_pct: float = Field(description="Fractional change vs previous close, e.g. 0.0153")
+    volume: int | None = None
+    as_of: date
+    sparkline: list[float] = Field(description="Recent daily closes, oldest first")
+
+
+class QuotesResponse(_APIModel):
+    generated_at: datetime
+    quotes: list[Quote]
+
+
 class RetrainRequest(_APIModel):
     symbol: str = Field(..., pattern=SYMBOL_PATTERN, examples=["AAPL"])
     horizons: list[str] | None = None

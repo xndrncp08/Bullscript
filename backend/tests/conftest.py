@@ -4,6 +4,7 @@ import pytest
 
 from app.config import settings
 from app.core.limiter import limiter
+from app.services import data_fetcher
 
 
 @pytest.fixture
@@ -38,6 +39,13 @@ def isolated_model_dir(tmp_path, monkeypatch):
     model_dir.mkdir()
     monkeypatch.setattr(settings, "model_dir", model_dir)
     yield model_dir
+
+
+@pytest.fixture(autouse=True)
+def clear_market_data_caches():
+    data_fetcher.clear_caches()
+    yield
+    data_fetcher.clear_caches()
 
 
 @pytest.fixture(autouse=True)
