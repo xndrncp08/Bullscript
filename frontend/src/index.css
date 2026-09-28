@@ -1,0 +1,38 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body {
+    @apply bg-obsidian text-white;
+  }
+
+  ::selection {
+    @apply bg-bull/30 text-white;
+  }
+
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: #0b0e11;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #1e262c;
+    border-radius: 999px;
+  }
+}
+
+@layer components {
+  .terminal-badge {
+    @apply inline-flex items-center gap-1.5 rounded-md border border-slate-border bg-slate-card px-2.5 py-1 font-mono text-xs text-bull;
+  }
+
+  .panel {
+    @apply rounded-xl border border-slate-border bg-slate-card;
+  }
+}
