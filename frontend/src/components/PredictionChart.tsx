@@ -199,8 +199,10 @@ export default function PredictionChart({ chart, prediction, loading }: Predicti
 
       {activeForecast && (
         <div className="mt-3 flex items-center justify-between border-t border-slate-border pt-3 text-xs text-slate-text">
-          <span>Model version: {prediction?.model_version}</span>
-          <span>Confidence: {(activeForecast.confidence * 100).toFixed(1)}%</span>
+          <span>Model version: {activeForecast.model_version}</span>
+          <span>
+            Hit rate: {activeForecast.hit_rate == null ? "—" : `${(activeForecast.hit_rate * 100).toFixed(1)}%`}
+          </span>
         </div>
       )}
     </div>

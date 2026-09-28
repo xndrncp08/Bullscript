@@ -12,24 +12,41 @@ vi.mock("@/api/client", () => ({
   },
 }));
 
+const logDefaults = { skill: 0.03, hit_rate: 0.55, psi: 0.08 };
+
 const diagnostics: DiagnosticsResponse = {
   generated_at: "2024-01-11T00:00:00Z",
+  drift_skill_floor: -0.1,
+  drift_psi_threshold: 0.2,
   models: [
     {
       symbol: "AAPL",
       horizon: "5d",
       model_version: "v3",
+      compatible: true,
+      target: "log_return",
       trained_at: "2024-01-10T12:00:00Z",
+      train_end: "2023-10-01",
+      train_samples: 400,
+      calibration_samples: 120,
+      holdout_samples: 120,
       rmse: 1.2345,
       mape: 0.0456,
       r2: 0.912,
-      feature_importances: { rsi_14: 0.32, macd: 0.21, ema_20: 0.18 },
+      skill: 0.03,
+      hit_rate: 0.55,
+      naive_rmse: 1.27,
+      residual_std: 0.03,
+      shrinkage: 0.8,
+      feature_importances: { rsi_14: 0.32, dist_ema_20: 0.21, bb_pct_b: 0.18 },
+      last_check: null,
       retrain_log: [
         {
+          ...logDefaults,
           timestamp: "2024-01-10T12:00:00Z",
           symbol: "AAPL",
           horizon: "5d",
-          trigger: "drift",
+          trigger: "performance_drift",
           rmse: 1.2345,
           mape: 0.0456,
           r2: 0.912,
@@ -37,6 +54,7 @@ const diagnostics: DiagnosticsResponse = {
           model_version: "v3",
         },
         {
+          ...logDefaults,
           timestamp: "2024-01-09T12:00:00Z",
           symbol: "AAPL",
           horizon: "5d",
@@ -61,7 +79,12 @@ describe("ModelDiagnostics", () => {
   it("shows an empty state when no models are tracked yet", () => {
     render(
       <ModelDiagnostics
-        diagnostics={{ generated_at: "2024-01-11T00:00:00Z", models: [] }}
+        diagnostics={{
+          generated_at: "2024-01-11T00:00:00Z",
+          drift_skill_floor: -0.1,
+          drift_psi_threshold: 0.2,
+          models: [],
+        }}
         loading={false}
         onRetrain={vi.fn()}
       />

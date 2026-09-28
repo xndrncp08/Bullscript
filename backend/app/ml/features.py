@@ -1,9 +1,24 @@
-"""Technical indicator feature extraction from OHLCV price history."""
+"""Technical indicator and model-feature extraction from OHLCV price history.
+
+Two layers live here:
+
+* Raw indicators (RSI, MACD, Bollinger Bands, EMAs, ATR, volatility) in price
+  units, which the chart endpoint serves as overlays.
+* Scale-free model features derived from them. The forecaster is trained on
+  these, never on raw price levels: tree ensembles can't extrapolate beyond the
+  range they were trained on, so a model fed absolute prices collapses toward
+  historical levels whenever a stock trades at new highs.
+"""
 
 from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+
+# Bump whenever FEATURE_COLUMNS or the target definition changes. Persisted
+# models trained under a different version are treated as incompatible and
+# retrained rather than fed features they were never fit on.
+FEATURE_VERSION = 2
 
 
 def compute_rsi(close: pd.Series, period: int = 14) -> pd.Series:
@@ -53,7 +68,7 @@ def compute_atr(df: pd.DataFrame, period: int = 14) -> pd.Series:
 
 
 def build_feature_frame(df: pd.DataFrame) -> pd.DataFrame:
-    """Given raw OHLCV data, return a DataFrame of engineered technical features.
+    """Given raw OHLCV data, return raw indicators plus scale-free model features.
 
     Input df must have columns: open, high, low, close, volume, indexed by date.
     """
@@ -63,51 +78,76 @@ def build_feature_frame(df: pd.DataFrame) -> pd.DataFrame:
     out["rsi_14"] = compute_rsi(close, 14)
     out["macd"], out["macd_signal"], out["macd_hist"] = compute_macd(close)
     out["bb_upper"], out["bb_middle"], out["bb_lower"] = compute_bollinger_bands(close)
-    out["ema_20"] = close.ewm(span=20, adjust=False).mean()
-    out["ema_50"] = close.ewm(span=50, adjust=False).mean()
-    out["ema_200"] = close.ewm(span=200, adjust=False).mean()
+    # min_periods keeps the seed-biased first values of each EMA out of both the
+    # chart overlay and the model features.
+    out["ema_20"] = close.ewm(span=20, min_periods=20, adjust=False).mean()
+    out["ema_50"] = close.ewm(span=50, min_periods=50, adjust=False).mean()
+    out["ema_200"] = close.ewm(span=200, min_periods=200, adjust=False).mean()
     out["atr_14"] = compute_atr(out, 14)
     out["volatility_20"] = close.pct_change().rolling(window=20).std() * np.sqrt(252)
 
     out["return_1d"] = close.pct_change(1)
     out["return_5d"] = close.pct_change(5)
     out["return_10d"] = close.pct_change(10)
-    out["volume_change"] = out["volume"].pct_change().replace([np.inf, -np.inf], 0)
+    out["return_20d"] = close.pct_change(20)
+
+    out["macd_norm"] = out["macd"] / close
+    out["macd_signal_norm"] = out["macd_signal"] / close
+    out["macd_hist_norm"] = out["macd_hist"] / close
+
+    band_width = out["bb_upper"] - out["bb_lower"]
+    out["bb_pct_b"] = (close - out["bb_lower"]) / band_width.replace(0, np.nan)
+    out["bb_width"] = band_width / out["bb_middle"]
+
+    out["dist_ema_20"] = close / out["ema_20"] - 1
+    out["dist_ema_50"] = close / out["ema_50"] - 1
+    out["dist_ema_200"] = close / out["ema_200"] - 1
+    out["atr_pct"] = out["atr_14"] / close
+
+    avg_volume = out["volume"].rolling(window=20, min_periods=20).mean()
+    out["volume_ratio"] = out["volume"] / avg_volume.replace(0, np.nan)
 
     return out
 
 
 FEATURE_COLUMNS = [
     "rsi_14",
-    "macd",
-    "macd_signal",
-    "macd_hist",
-    "bb_upper",
-    "bb_middle",
-    "bb_lower",
-    "ema_20",
-    "ema_50",
-    "ema_200",
-    "atr_14",
+    "macd_norm",
+    "macd_signal_norm",
+    "macd_hist_norm",
+    "bb_pct_b",
+    "bb_width",
+    "dist_ema_20",
+    "dist_ema_50",
+    "dist_ema_200",
+    "atr_pct",
     "volatility_20",
     "return_1d",
     "return_5d",
     "return_10d",
-    "volume_change",
+    "return_20d",
+    "volume_ratio",
 ]
 
 
 def build_supervised_dataset(
     df: pd.DataFrame, horizon_days: int
 ) -> tuple[pd.DataFrame, pd.Series]:
-    """Build (X, y) where y is the closing price `horizon_days` in the future."""
+    """Build (X, y) where y is the log return over the next `horizon_days` bars."""
     features = build_feature_frame(df)
-    target = df["close"].shift(-horizon_days)
+    close = df["close"]
+    target = np.log(close.shift(-horizon_days) / close)
 
-    dataset = features.copy()
+    dataset = features[FEATURE_COLUMNS].copy()
     dataset["target"] = target
-    dataset = dataset.dropna(subset=FEATURE_COLUMNS + ["target"])
+    dataset = dataset.replace([np.inf, -np.inf], np.nan).dropna()
 
-    X = dataset[FEATURE_COLUMNS]
-    y = dataset["target"]
-    return X, y
+    return dataset[FEATURE_COLUMNS], dataset["target"]
+
+
+def latest_feature_rows(df: pd.DataFrame, count: int = 1) -> pd.DataFrame:
+    """The most recent fully-populated feature rows, including bars whose
+    forward target isn't known yet (i.e. the rows we actually forecast from)."""
+    features = build_feature_frame(df)[FEATURE_COLUMNS]
+    features = features.replace([np.inf, -np.inf], np.nan).dropna()
+    return features.iloc[-count:]
