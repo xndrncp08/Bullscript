@@ -35,9 +35,13 @@ class ModelRecord:
     naive_rmse: float | None = None
     residual_std: float | None = None
     shrinkage: float | None = None
+    # Evaluation segments of the procedure (metrics come from the holdout)...
     train_samples: int = 0
     calibration_samples: int = 0
     holdout_samples: int = 0
+    # ...and the deployed refit: rows it was fit on, trees early stopping chose.
+    fit_samples: int = 0
+    trees: int = 0
     train_end: str | None = None
     feature_reference: dict[str, dict] = field(default_factory=dict)
 
@@ -129,7 +133,7 @@ def append_retrain_log(
     metrics: dict,
     promoted: bool,
     model_version: str,
-    psi: float | None = None,
+    ood: float | None = None,
 ) -> None:
     entry = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -141,7 +145,7 @@ def append_retrain_log(
         "r2": metrics.get("r2"),
         "skill": metrics.get("skill"),
         "hit_rate": metrics.get("hit_rate"),
-        "psi": psi,
+        "ood": ood,
         "promoted": promoted,
         "model_version": model_version,
     }
