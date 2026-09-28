@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
@@ -50,10 +50,10 @@ const prediction: PredictionResponse = {
 };
 
 describe("PredictionChart", () => {
-  it("shows a loading state instead of the chart while loading", () => {
+  it("shows a skeleton loader instead of the chart while loading", () => {
     render(<PredictionChart chart={null} prediction={null} loading={true} />);
 
-    expect(screen.getByText(/loading chart data/i)).toBeInTheDocument();
+    expect(screen.getByTestId("chart-skeleton")).toBeInTheDocument();
   });
 
   it("renders the historical close line and predicted forecast line", () => {
@@ -79,13 +79,15 @@ describe("PredictionChart", () => {
     const user = userEvent.setup();
     render(<PredictionChart chart={chart} prediction={prediction} loading={false} />);
 
+    const horizonGroup = screen.getByRole("group", { name: /forecast horizon/i });
+
     // default horizon is 14d
     expect(screen.getByText(/confidence: 74.0%/i)).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "30D" }));
+    await user.click(within(horizonGroup).getByRole("button", { name: "30D" }));
     expect(screen.getByText(/confidence: 60.0%/i)).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "5D" }));
+    await user.click(within(horizonGroup).getByRole("button", { name: "5D" }));
     expect(screen.getByText(/confidence: 88.0%/i)).toBeInTheDocument();
   });
 
@@ -93,5 +95,17 @@ describe("PredictionChart", () => {
     render(<PredictionChart chart={chart} prediction={prediction} loading={false} />);
 
     expect(screen.getByText(/model version: v3/i)).toBeInTheDocument();
+  });
+
+  it("switches the historical range window without breaking the chart layout", async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <PredictionChart chart={chart} prediction={prediction} loading={false} />
+    );
+
+    const rangeGroup = screen.getByRole("group", { name: /historical range/i });
+    await user.click(within(rangeGroup).getByRole("button", { name: "1Y" }));
+
+    expect(container.querySelectorAll(".recharts-line-curve").length).toBeGreaterThanOrEqual(2);
   });
 });
