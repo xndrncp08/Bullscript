@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import os
 import re
+import tempfile
 from dataclasses import asdict, dataclass, field, fields
 from datetime import datetime, timezone
 from pathlib import Path
@@ -14,6 +16,20 @@ from app.config import settings
 from app.ml.features import FEATURE_VERSION
 
 _SAFE_KEY = re.compile(r"^[A-Z0-9.^=\-]+_[0-9]+d$")
+
+
+def _atomic_write(path: Path, write) -> None:
+    """Write via a temp file in the same directory, then rename over the
+    target. Readers never see a half-written file - the diagnostics endpoint
+    reads model metadata while a retrain may be writing it."""
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.")
+    os.close(fd)
+    try:
+        write(Path(tmp))
+        os.replace(tmp, path)
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise
 
 
 @dataclass
@@ -83,9 +99,11 @@ def next_version(symbol: str, horizon: str) -> str:
 
 def save_model(symbol: str, horizon: str, model, record: ModelRecord) -> Path:
     path = _model_path(symbol, horizon, record.version)
-    joblib.dump(model, path)
+    # binary first, metadata second: metadata never points at a model file
+    # that isn't fully on disk
+    _atomic_write(path, lambda tmp: joblib.dump(model, tmp))
     metadata = {"record": asdict(record), "last_check": None}
-    _metadata_path(symbol, horizon).write_text(json.dumps(metadata, indent=2))
+    _atomic_write(_metadata_path(symbol, horizon), lambda tmp: tmp.write_text(json.dumps(metadata, indent=2)))
     return path
 
 
@@ -123,7 +141,7 @@ def save_check(symbol: str, horizon: str, check: dict) -> None:
     if meta is None:
         return
     meta["last_check"] = check
-    _metadata_path(symbol, horizon).write_text(json.dumps(meta, indent=2))
+    _atomic_write(_metadata_path(symbol, horizon), lambda tmp: tmp.write_text(json.dumps(meta, indent=2)))
 
 
 def append_retrain_log(
@@ -157,7 +175,12 @@ def read_retrain_log(symbol: str | None = None, limit: int = 100) -> list[dict]:
     path = _log_path()
     if not path.exists():
         return []
-    entries = [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
+    entries = []
+    for line in path.read_text().splitlines():
+        try:
+            entries.append(json.loads(line))
+        except json.JSONDecodeError:
+            continue  # a line mid-append by a concurrent writer
     if symbol:
         entries = [e for e in entries if e["symbol"] == symbol.upper()]
     return entries[-limit:][::-1]

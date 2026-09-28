@@ -101,6 +101,37 @@ def test_forecast_reuses_the_active_model(served):
     assert model_store.load_record("TREND", "14d").version == "v1"
 
 
+def test_concurrent_first_forecasts_train_the_model_once(served):
+    """Two tabs (or a retry) asking for a symbol nobody has forecast yet
+    must not each train and version the same model."""
+    import threading
+
+    barrier = threading.Barrier(4)
+    errors: list[Exception] = []
+
+    def request_forecast():
+        barrier.wait()
+        try:
+            forecaster.generate_forecast("RACE", "5d", price_df=served)
+        except Exception as exc:  # surfaced by the assertion below
+            errors.append(exc)
+
+    threads = [threading.Thread(target=request_forecast) for _ in range(4)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert errors == []
+    assert model_store.load_record("RACE", "5d").version == "v1"
+    assert len(model_store.read_retrain_log(symbol="RACE")) == 1
+
+
+def test_forecast_path_logs_why_it_trained(served):
+    forecaster.generate_forecast("WHY", "5d", price_df=served)
+    assert model_store.read_retrain_log(symbol="WHY")[0]["trigger"] == "bootstrap"
+
+
 def test_all_forecasts_cover_every_horizon_in_order(served):
     result = forecaster.generate_all_forecasts("trend")
 
