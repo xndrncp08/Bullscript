@@ -36,15 +36,68 @@ def test_first_cycle_bootstraps_and_promotes_v1(price_feed):
     assert 0 <= record.hit_rate <= 1
     assert set(record.feature_reference) == set(FEATURE_COLUMNS)
     assert record.train_samples > record.holdout_samples > 0
+    assert record.trees >= 1
 
 
-def test_promoted_model_records_a_drift_check(price_feed):
+def test_deployed_model_is_refit_on_all_labelled_history(price_feed, synthetic_price_df):
+    pipeline.run_training_cycle("AAPL", "5d")
+
+    record = model_store.load_record("AAPL", "5d")
+    X, _ = pipeline.build_supervised_dataset(synthetic_price_df, 5)
+    # evaluated on segments, deployed on everything - including recent bars
+    assert record.fit_samples == len(X)
+    assert record.fit_samples > record.train_samples + record.calibration_samples
+    assert record.train_end == X.index[-1].date().isoformat()
+
+
+def test_promoted_model_starts_with_no_feature_drift(price_feed):
+    """Regression: the deployed model used to be fit only on the oldest ~60%
+    of history, so the recent window always looked drifted against it and
+    the scheduler retrained every hour, forever."""
     pipeline.run_training_cycle("AAPL", "5d")
 
     check = model_store.load_metadata("AAPL", "5d")["last_check"]
     assert check["action"] == "promoted"
     assert check["drift_status"] == "unknown"
-    assert check["psi"] is not None
+    assert check["ood"] < pipeline.settings.drift_ood_threshold
+
+
+def test_repeat_checks_on_unchanged_data_do_not_retrain(price_feed):
+    pipeline.run_training_cycle("AAPL", "14d")
+
+    for _ in range(3):
+        result = pipeline.run_training_cycle("AAPL", "14d")
+        assert result["trigger"] == pipeline.TRIGGER_NOOP
+
+    assert model_store.load_record("AAPL", "14d").version == "v1"
+
+
+def test_live_skill_is_measured_only_on_bars_after_training(monkeypatch, synthetic_price_df):
+    monkeypatch.setattr(pipeline, "fetch_price_history", lambda symbol: synthetic_price_df.iloc[:-60])
+    pipeline.run_training_cycle("AAPL", "5d")
+    trained_through = model_store.load_record("AAPL", "5d").train_end
+
+    monkeypatch.setattr(pipeline, "fetch_price_history", lambda symbol: synthetic_price_df)
+    pipeline.run_training_cycle("AAPL", "5d")
+
+    check = model_store.load_metadata("AAPL", "5d")["last_check"]
+    X, _ = pipeline.build_supervised_dataset(synthetic_price_df, 5)
+    unseen = int((X.index > trained_through).sum())
+    # the first horizon's worth of new bars share target prices with training
+    assert check["live_samples"] == unseen - 5
+    assert check["live_skill"] is not None
+
+
+def test_no_live_verdict_until_enough_new_bars(monkeypatch, synthetic_price_df):
+    monkeypatch.setattr(pipeline, "fetch_price_history", lambda symbol: synthetic_price_df.iloc[:-10])
+    pipeline.run_training_cycle("AAPL", "5d")
+
+    monkeypatch.setattr(pipeline, "fetch_price_history", lambda symbol: synthetic_price_df)
+    pipeline.run_training_cycle("AAPL", "5d")
+
+    check = model_store.load_metadata("AAPL", "5d")["last_check"]
+    assert check["live_samples"] == 0
+    assert check["live_skill"] is None
 
 
 def test_forced_retrain_increments_the_version(price_feed):
@@ -60,7 +113,7 @@ def test_forced_retrain_increments_the_version(price_feed):
 
 def test_stable_model_is_left_alone(monkeypatch, price_feed):
     pipeline.run_training_cycle("GOOG", "30d")
-    monkeypatch.setattr(pipeline, "_drift_reasons", lambda metrics, psi: [])
+    monkeypatch.setattr(pipeline, "_drift_reasons", lambda metrics, ood: [])
 
     result = pipeline.run_training_cycle("GOOG", "30d")
 
@@ -76,7 +129,7 @@ def test_stable_model_is_left_alone(monkeypatch, price_feed):
 @pytest.mark.parametrize("reason", [pipeline.TRIGGER_PERFORMANCE, pipeline.TRIGGER_DATA])
 def test_drift_triggers_a_retrain(monkeypatch, price_feed, reason):
     pipeline.run_training_cycle("TSLA", "5d")
-    monkeypatch.setattr(pipeline, "_drift_reasons", lambda metrics, psi: [reason])
+    monkeypatch.setattr(pipeline, "_drift_reasons", lambda metrics, ood: [reason])
 
     result = pipeline.run_training_cycle("TSLA", "5d")
 
@@ -87,26 +140,25 @@ def test_drift_triggers_a_retrain(monkeypatch, price_feed, reason):
 
 def test_drift_reasons_thresholds(monkeypatch):
     monkeypatch.setattr(pipeline.settings, "drift_skill_floor", -0.1)
-    monkeypatch.setattr(pipeline.settings, "drift_psi_threshold", 0.2)
+    monkeypatch.setattr(pipeline.settings, "drift_ood_threshold", 0.1)
 
     assert pipeline._drift_reasons({"skill": 0.05}, 0.05) == []
     assert pipeline._drift_reasons({"skill": -0.3}, 0.05) == [pipeline.TRIGGER_PERFORMANCE]
-    assert pipeline._drift_reasons({"skill": 0.05}, 0.4) == [pipeline.TRIGGER_DATA]
+    assert pipeline._drift_reasons({"skill": 0.05}, 0.3) == [pipeline.TRIGGER_DATA]
     assert pipeline._drift_reasons({"skill": 0.05}, None) == []
+    # no live bars yet: no performance verdict either way
+    assert pipeline._drift_reasons(None, 0.05) == []
 
 
-def test_worse_challenger_does_not_replace_incumbent(monkeypatch, price_feed):
+def test_clearly_worse_challenger_does_not_replace_incumbent(monkeypatch, price_feed):
     pipeline.run_training_cycle("NVDA", "5d")
-    monkeypatch.setattr(pipeline, "_drift_reasons", lambda metrics, psi: [pipeline.TRIGGER_DATA])
+    monkeypatch.setattr(pipeline, "_drift_reasons", lambda metrics, ood: [pipeline.TRIGGER_DATA])
 
     real_evaluate = pipeline.evaluate_model
-    calls = {"n": 0}
 
     def evaluate_with_worse_challenger(model, X, y, close):
-        calls["n"] += 1
         metrics = real_evaluate(model, X, y, close)
-        if calls["n"] == 2:  # 1st call scores the incumbent, 2nd the challenger
-            metrics["rmse"] *= 10
+        metrics["skill"] -= 0.5
         return metrics
 
     monkeypatch.setattr(pipeline, "evaluate_model", evaluate_with_worse_challenger)

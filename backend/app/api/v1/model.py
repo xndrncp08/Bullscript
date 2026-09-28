@@ -57,6 +57,8 @@ def get_diagnostics(
                 train_samples=record.train_samples,
                 calibration_samples=record.calibration_samples,
                 holdout_samples=record.holdout_samples,
+                fit_samples=record.fit_samples,
+                trees=record.trees,
                 rmse=record.rmse,
                 mape=record.mape,
                 r2=record.r2,
@@ -74,7 +76,7 @@ def get_diagnostics(
     return DiagnosticsResponse(
         generated_at=datetime.now(timezone.utc),
         drift_skill_floor=settings.drift_skill_floor,
-        drift_psi_threshold=settings.drift_psi_threshold,
+        drift_ood_threshold=settings.drift_ood_threshold,
         models=models,
     )
 

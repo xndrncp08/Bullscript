@@ -15,10 +15,12 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-# Bump whenever FEATURE_COLUMNS or the target definition changes. Persisted
-# models trained under a different version are treated as incompatible and
-# retrained rather than fed features they were never fit on.
-FEATURE_VERSION = 2
+# Bump whenever FEATURE_COLUMNS, the target, or the contract of persisted
+# models changes. Models saved under a different version are treated as
+# incompatible and refit on first use rather than trusted.
+#   2: log-return target on scale-free features
+#   3: deployed as a refit on all history; range-based drift reference
+FEATURE_VERSION = 3
 
 
 def compute_rsi(close: pd.Series, period: int = 14) -> pd.Series:

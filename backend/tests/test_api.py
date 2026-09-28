@@ -166,6 +166,7 @@ def test_get_diagnostics_surfaces_tracked_model():
 
     body = response.json()
     assert body["drift_skill_floor"] < 0
+    assert body["drift_ood_threshold"] > 0
     assert len(body["models"]) == 1
     model = body["models"][0]
     assert model["symbol"] == "AAPL"
@@ -205,7 +206,10 @@ def test_get_diagnostics_includes_the_latest_drift_check():
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "drift_status": "stable",
             "action": "none",
-            "psi": 0.07,
+            "ood": 0.02,
+            "live_skill": 0.03,
+            "live_hit_rate": 0.55,
+            "live_samples": 24,
             "skill": 0.04,
             "hit_rate": 0.57,
             "rmse": 1.2,
@@ -214,7 +218,8 @@ def test_get_diagnostics_includes_the_latest_drift_check():
 
     check = client.get("/api/v1/model/diagnostics").json()["models"][0]["last_check"]
     assert check["drift_status"] == "stable"
-    assert check["psi"] == 0.07
+    assert check["ood"] == 0.02
+    assert check["live_samples"] == 24
 
 
 @pytest.mark.parametrize(
