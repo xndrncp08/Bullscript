@@ -114,10 +114,13 @@ export function useTickerData(symbol: string) {
     fetchOne("diagnostics", symbol);
   }, [fetchOne, symbol]);
 
+  /** Refetch the model registry only (it can lag a forecast that trained). */
+  const reloadDiagnostics = useCallback(() => fetchOne("diagnostics", symbol), [fetchOne, symbol]);
+
   /** Refetch everything for the current symbol (retry after an error). */
   const reload = useCallback(() => {
     ALL_KEYS.forEach((key) => fetchOne(key, symbol));
   }, [fetchOne, symbol]);
 
-  return { ...data, reloadModel, reload };
+  return { ...data, reloadModel, reloadDiagnostics, reload };
 }

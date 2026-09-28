@@ -61,7 +61,22 @@ export default function App() {
   const reduceMotion = useReducedMotion();
 
   const data = useTickerData(symbol);
-  const { reloadModel } = data;
+  const { reloadModel, reloadDiagnostics } = data;
+
+  // A symbol's first forecast trains its models, and the registry request
+  // (sent in parallel) can come back before they exist. Once per forecast,
+  // refetch the registry if it doesn't match the versions the forecast used.
+  const reconciledForecast = useRef<unknown>(null);
+  useEffect(() => {
+    const forecast = data.prediction.symbol === symbol ? data.prediction.data : null;
+    if (!forecast || data.diagnostics.status === "loading" || reconciledForecast.current === forecast) return;
+    reconciledForecast.current = forecast;
+    const registry = data.diagnostics.symbol === symbol ? data.diagnostics.data : null;
+    const matches = forecast.horizons.every((h) =>
+      registry?.models.some((m) => m.horizon === h.horizon && m.model_version === h.model_version)
+    );
+    if (!matches) reloadDiagnostics();
+  }, [data.prediction, data.diagnostics, symbol, reloadDiagnostics]);
 
   const quoteSymbols = useMemo(() => [...new Set([symbol, ...watchlist, ...TAPE_SYMBOLS])], [symbol, watchlist]);
   const quotes = useQuotes(quoteSymbols);

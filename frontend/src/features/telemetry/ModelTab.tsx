@@ -33,12 +33,18 @@ function Metric({ label, value, tone = "text-ink" }: { label: string; value: str
   );
 }
 
-function PsiMeter({ psi, threshold }: { psi: number; threshold: number }) {
+/** Share of recent inputs outside the training range, on a scale that puts
+ * the drift threshold at the midpoint. */
+function RangeMeter({ share, threshold }: { share: number; threshold: number }) {
   const max = threshold * 2;
-  const fill = Math.min(1, psi / max);
-  const over = psi > threshold;
+  const fill = Math.min(1, share / max);
+  const over = share > threshold;
   return (
-    <div className="relative h-1.5 w-full rounded-full bg-line/70" role="img" aria-label={`PSI ${psi.toFixed(2)} against a drift threshold of ${threshold}`}>
+    <div
+      className="relative h-1.5 w-full rounded-full bg-line/70"
+      role="img"
+      aria-label={`${formatPercent(share, { digits: 1, signed: false })} of recent inputs outside the training range; drift threshold ${formatPercent(threshold, { digits: 0, signed: false })}`}
+    >
       <span
         className={`absolute inset-y-0 left-0 origin-left rounded-full ${over ? "bg-warn" : "bg-accent/70"}`}
         style={{ width: "100%", transform: `scaleX(${fill})`, transition: "transform 300ms var(--ease-out)" }}
@@ -66,14 +72,14 @@ function logLine(entry: RetrainLogEntry) {
     promoted: entry.promoted,
     trigger: TRIGGER_LABELS[entry.trigger] ?? entry.trigger,
     skill: entry.skill,
-    psi: entry.psi,
+    ood: entry.ood,
   };
 }
 
 export function ModelTab({ symbol, horizon, diagnostics, retrain, onRetrain }: ModelTabProps) {
   const data = diagnostics.symbol === symbol ? diagnostics.data : null;
   const model = data?.models.find((m) => m.horizon === horizon) ?? null;
-  const threshold = data?.drift_psi_threshold ?? 0.2;
+  const threshold = data?.drift_ood_threshold ?? 0.1;
   const running = retrain.status === "running" && retrain.symbol === symbol;
   const finished = retrain.symbol === symbol && (retrain.status === "success" || retrain.status === "error");
 
@@ -117,8 +123,8 @@ export function ModelTab({ symbol, horizon, diagnostics, retrain, onRetrain }: M
               })()}
             </div>
             <p className="text-ink-3">
-              trained {formatRelativeTime(model.trained_at)} · {model.train_samples} train · {model.calibration_samples} cal ·{" "}
-              {model.holdout_samples} holdout bars
+              trained {formatRelativeTime(model.trained_at)} · fit on {model.fit_samples || model.train_samples} bars
+              {model.trees ? ` · ${model.trees} trees` : ""} · scored on {model.holdout_samples} holdout bars
             </p>
             <dl className="grid grid-cols-4 gap-x-3 gap-y-2">
               <Metric label="SKILL" value={formatPercent(model.skill, { digits: 1 })} tone={model.skill != null && model.skill < 0 ? "text-warn" : "text-ink"} />
@@ -132,13 +138,23 @@ export function ModelTab({ symbol, horizon, diagnostics, retrain, onRetrain }: M
             </dl>
             <div className="space-y-1.5">
               <div className="flex justify-between">
-                <span className="text-ink-3">FEATURE DRIFT · PSI</span>
+                <abbr
+                  title="Share of recent feature values outside the range the model was fit on. Trees can't extrapolate, so this is when forecasts stop being trustworthy."
+                  className="cursor-help text-ink-3 no-underline"
+                >
+                  INPUTS OUT OF RANGE
+                </abbr>
                 <span className="tabular text-ink">
-                  {model.last_check?.psi != null ? model.last_check.psi.toFixed(3) : "—"}
-                  <span className="text-ink-3"> / {threshold}</span>
+                  {formatPercent(model.last_check?.ood, { digits: 1, signed: false })}
+                  <span className="text-ink-3"> / {formatPercent(threshold, { digits: 0, signed: false })}</span>
                 </span>
               </div>
-              {model.last_check?.psi != null && <PsiMeter psi={model.last_check.psi} threshold={threshold} />}
+              {model.last_check?.ood != null && <RangeMeter share={model.last_check.ood} threshold={threshold} />}
+              <p className="text-ink-3" data-testid="live-monitor">
+                {model.last_check?.live_skill != null
+                  ? `live · ${model.last_check.live_samples} unseen bars · skill ${formatPercent(model.last_check.live_skill, { digits: 1 })} · hit ${formatPercent(model.last_check.live_hit_rate, { digits: 0, signed: false })}`
+                  : "live · waiting for 20 bars the model hasn't seen"}
+              </p>
               <p className="text-ink-3">
                 {model.last_check
                   ? `last check ${formatRelativeTime(model.last_check.timestamp)} · ${model.last_check.drift_status} · ${model.last_check.action.replace("_", " ")}`
@@ -229,7 +245,7 @@ export function ModelTab({ symbol, horizon, diagnostics, retrain, onRetrain }: M
               <span className={line.promoted ? "text-brand" : "text-ink-3"}>{line.promoted ? "PROMOTED" : "no-op"}</span>{" "}
               {line.trigger}
               {line.skill != null && ` · skill ${formatPercent(line.skill, { digits: 1 })}`}
-              {line.psi != null && ` · psi ${line.psi.toFixed(2)}`}
+              {line.ood != null && ` · ood ${formatPercent(line.ood, { digits: 1, signed: false })}`}
             </p>
           ))}
         </div>

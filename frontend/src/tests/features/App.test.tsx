@@ -38,7 +38,7 @@ function fakeApi(calls: string[]) {
       return json({
         symbol,
         results: {
-          "14d": { promoted: true, trigger: "manual", version: "v4", psi: null, metrics: { rmse: 1, mape: 0.01, r2: 0.9, skill: 0.05, hit_rate: 0.6, naive_rmse: 1.1, residual_std: 0.02 } },
+          "14d": { promoted: true, trigger: "manual", version: "v4", ood: null, metrics: { rmse: 1, mape: 0.01, r2: 0.9, skill: 0.05, hit_rate: 0.6, naive_rmse: 1.1, residual_std: 0.02 } },
         },
       });
     }
@@ -119,6 +119,27 @@ describe("App", () => {
     expect(calls).toContain("POST /api/v1/model/retrain");
     await waitFor(() => expect(predictionCalls()).toBe(before + 1));
     expect(screen.getByRole("log", { name: "Retrain log" })).toHaveTextContent(/14d\s+v4\s+PROMOTED/);
+  });
+
+  it("refreshes the model registry when the forecast trained models it didn't list yet", async () => {
+    const api = fakeApi(calls);
+    let registryCalls = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string, init?: RequestInit) => {
+        if (url.startsWith("/api/v1/model/diagnostics") && registryCalls++ === 0) {
+          calls.push(`GET ${url}`);
+          return json(makeDiagnostics("AAPL", [])); // registry answered before training finished
+        }
+        return api(url, init);
+      })
+    );
+
+    render(<App />);
+
+    const health = await screen.findByRole("region", { name: "Model health" });
+    await waitFor(() => expect(health).toHaveTextContent("AAPL · 14D · v3"));
+    expect(calls.filter((c) => c.includes("/model/diagnostics")).length).toBe(2);
   });
 
   it("adds the current symbol to the watchlist from the header star", async () => {

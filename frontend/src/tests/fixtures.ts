@@ -113,6 +113,8 @@ export function makeModel(symbol = "AAPL", horizon = "14d", overrides: Partial<M
     train_samples: 500,
     calibration_samples: 170,
     holdout_samples: 170,
+    fit_samples: 880,
+    trees: 36,
     rmse: 10.96,
     mape: 0.029,
     r2: 0.85,
@@ -126,10 +128,13 @@ export function makeModel(symbol = "AAPL", horizon = "14d", overrides: Partial<M
       timestamp: new Date(Date.now() - 600_000).toISOString(),
       drift_status: "stable",
       action: "none",
-      psi: 0.07,
+      ood: 0.006,
       skill: 0.061,
       hit_rate: 0.69,
       rmse: 10.96,
+      live_skill: 0.017,
+      live_hit_rate: 0.55,
+      live_samples: 58,
     },
     retrain_log: [
       {
@@ -142,7 +147,7 @@ export function makeModel(symbol = "AAPL", horizon = "14d", overrides: Partial<M
         r2: 0.85,
         skill: 0.061,
         hit_rate: 0.69,
-        psi: null,
+        ood: null,
         promoted: true,
         model_version: "v3",
       },
@@ -155,7 +160,7 @@ export function makeDiagnostics(symbol = "AAPL", models?: ModelDiagnostics[]): D
   return {
     generated_at: "2026-06-01T12:00:00Z",
     drift_skill_floor: -0.1,
-    drift_psi_threshold: 0.2,
+    drift_ood_threshold: 0.1,
     models: models ?? [makeModel(symbol, "5d"), makeModel(symbol, "14d"), makeModel(symbol, "30d")],
   };
 }

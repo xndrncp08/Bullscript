@@ -66,7 +66,7 @@ describe("CommandBar", () => {
 
   it("flags drift from the latest check", () => {
     const drifted = makeModel("AAPL", "14d", {
-      last_check: { timestamp: "2026-06-01T10:00:00Z", drift_status: "drift", action: "promoted", psi: 0.4, skill: 0, hit_rate: 0.5, rmse: 1 },
+      last_check: { timestamp: "2026-06-01T10:00:00Z", drift_status: "drift", action: "promoted", ood: 0.3, skill: 0, hit_rate: 0.5, rmse: 1, live_skill: null, live_hit_rate: null, live_samples: 0 },
     });
     renderBar({ diagnostics: ready(makeDiagnostics("AAPL", [drifted]), "AAPL") });
     expect(screen.getByTestId("model-badge")).toHaveTextContent("DRIFT");

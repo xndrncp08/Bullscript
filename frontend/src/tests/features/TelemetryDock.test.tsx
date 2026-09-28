@@ -35,13 +35,14 @@ describe("TelemetryDock · model", () => {
     expect(health).toHaveTextContent("ACTIVE");
     expect(health).toHaveTextContent(/SKILL\+6\.1%/);
     expect(health).toHaveTextContent(/HIT69%/);
-    expect(health).toHaveTextContent("500 train · 170 cal · 170 holdout");
-    expect(screen.getByRole("img", { name: "PSI 0.07 against a drift threshold of 0.2" })).toBeInTheDocument();
+    expect(health).toHaveTextContent("fit on 880 bars · 36 trees · scored on 170 holdout bars");
+    expect(screen.getByRole("img", { name: "0.6% of recent inputs outside the training range; drift threshold 10%" })).toBeInTheDocument();
+    expect(screen.getByTestId("live-monitor")).toHaveTextContent("live · 58 unseen bars · skill +1.7% · hit 55%");
   });
 
   it("labels drifted and legacy models", () => {
     const drifted = makeModel("AAPL", "14d", {
-      last_check: { timestamp: "2026-06-01T10:00:00Z", drift_status: "drift", action: "promoted", psi: 0.41, skill: 0, hit_rate: 0.5, rmse: 1 },
+      last_check: { timestamp: "2026-06-01T10:00:00Z", drift_status: "drift", action: "promoted", ood: 0.3, skill: 0, hit_rate: 0.5, rmse: 1, live_skill: null, live_hit_rate: null, live_samples: 0 },
     });
     const { rerender } = renderDock({ diagnostics: ready(makeDiagnostics("AAPL", [drifted]), "AAPL") });
     expect(screen.getByRole("region", { name: "Model health" })).toHaveTextContent("DRIFT");
@@ -59,6 +60,25 @@ describe("TelemetryDock · model", () => {
       />
     );
     expect(screen.getByRole("region", { name: "Model health" })).toHaveTextContent("LEGACY");
+  });
+
+  it("waits for unseen bars before judging live performance", () => {
+    const fresh = makeModel("AAPL", "14d", {
+      last_check: {
+        timestamp: "2026-06-01T10:00:00Z",
+        drift_status: "stable",
+        action: "promoted",
+        ood: 0.004,
+        skill: 0.06,
+        hit_rate: 0.6,
+        rmse: 1,
+        live_skill: null,
+        live_hit_rate: null,
+        live_samples: 0,
+      },
+    });
+    renderDock({ diagnostics: ready(makeDiagnostics("AAPL", [fresh]), "AAPL") });
+    expect(screen.getByTestId("live-monitor")).toHaveTextContent("waiting for 20 bars the model hasn't seen");
   });
 
   it("ranks feature importances with readable names", () => {
@@ -112,8 +132,8 @@ describe("TelemetryDock · retrain console", () => {
         response: {
           symbol: "AAPL",
           results: {
-            "5d": { promoted: true, trigger: "manual", version: "v4", psi: null, metrics: { rmse: 1, mape: 0.01, r2: 0.9, skill: 0.031, hit_rate: 0.58, naive_rmse: 1.1, residual_std: 0.02 } },
-            "30d": { promoted: false, trigger: "manual", version: "v3", psi: null, metrics: { rmse: 1, mape: 0.01, r2: 0.9, skill: -0.2, hit_rate: 0.4, naive_rmse: 1.1, residual_std: 0.02 } },
+            "5d": { promoted: true, trigger: "manual", version: "v4", ood: null, metrics: { rmse: 1, mape: 0.01, r2: 0.9, skill: 0.031, hit_rate: 0.58, naive_rmse: 1.1, residual_std: 0.02 } },
+            "30d": { promoted: false, trigger: "manual", version: "v3", ood: null, metrics: { rmse: 1, mape: 0.01, r2: 0.9, skill: -0.2, hit_rate: 0.4, naive_rmse: 1.1, residual_std: 0.02 } },
           },
         },
       },
