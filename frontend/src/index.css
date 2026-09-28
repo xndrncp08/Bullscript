@@ -2,14 +2,32 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --color-bg: 11 14 17; /* #0B0E11 */
+  --color-bg-deep: 13 15 18; /* #0D0F12 */
+  --color-card: 22 26 34; /* #161A22 */
+  --color-border: 30 38 44; /* #1E262C */
+  --color-text-primary: 255 255 255; /* #FFFFFF */
+  --color-text-secondary: 138 153 173; /* #8A99AD */
+}
+
+:root[data-theme="light"] {
+  --color-bg: 244 246 248; /* #F4F6F8 */
+  --color-bg-deep: 255 255 255; /* #FFFFFF */
+  --color-card: 255 255 255; /* #FFFFFF */
+  --color-border: 224 228 233; /* #E0E4E9 */
+  --color-text-primary: 13 17 23; /* #0D1117 */
+  --color-text-secondary: 90 100 115; /* #5A6473 */
+}
+
 @layer base {
   html,
   body {
-    @apply bg-obsidian text-white;
+    @apply bg-obsidian text-primary font-sans transition-colors duration-200;
   }
 
   ::selection {
-    @apply bg-bull/30 text-white;
+    @apply bg-bull/30 text-primary;
   }
 
   ::-webkit-scrollbar {
@@ -34,5 +52,24 @@
 
   .panel {
     @apply rounded-xl border border-slate-border bg-slate-card;
+  }
+
+  .panel-glass {
+    @apply rounded-xl border border-slate-border bg-slate-card/80 shadow-lg shadow-black/20 backdrop-blur-md;
+  }
+
+  .skeleton {
+    @apply relative overflow-hidden rounded-md bg-slate-border/40;
+  }
+
+  .skeleton::after {
+    content: "";
+    @apply absolute inset-0 animate-shimmer bg-[length:200%_100%];
+    background-image: linear-gradient(
+      90deg,
+      transparent,
+      rgba(138, 153, 173, 0.12),
+      transparent
+    );
   }
 }

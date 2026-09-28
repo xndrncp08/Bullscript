@@ -67,7 +67,7 @@ export default function PredictionChart({ chart, prediction, loading }: Predicti
     <div className="panel flex h-full flex-col p-4">
       <div className="mb-3 flex items-center justify-between">
         <div>
-          <h2 className="text-sm font-semibold text-white">Price & ML Forecast</h2>
+          <h2 className="text-sm font-semibold text-primary">Price & ML Forecast</h2>
           <p className="text-xs text-slate-text">
             {chart ? chart.symbol : "—"} · historical close blended into predicted trajectory
           </p>
@@ -80,7 +80,7 @@ export default function PredictionChart({ chart, prediction, loading }: Predicti
               className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
                 horizon === h
                   ? "bg-bull-gradient text-obsidian"
-                  : "text-slate-text hover:text-white"
+                  : "text-slate-text hover:text-primary"
               }`}
             >
               {h.toUpperCase()}

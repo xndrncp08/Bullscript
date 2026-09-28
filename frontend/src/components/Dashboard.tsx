@@ -2,6 +2,7 @@ import type { ChartResponse, DiagnosticsResponse, PredictionResponse, SentimentR
 
 import ModelDiagnostics from "./ModelDiagnostics";
 import PredictionChart from "./PredictionChart";
+import QuickStats from "./QuickStats";
 import SentimentCard from "./SentimentCard";
 
 interface DashboardProps {
@@ -24,27 +25,27 @@ export default function Dashboard({
   onRetrain,
 }: DashboardProps) {
   return (
-    <main className="mx-auto grid max-w-7xl grid-cols-1 gap-4 p-6 lg:grid-cols-3">
-      <div className="lg:col-span-2">
-        <div className="mb-4 flex items-baseline gap-3">
-          <h1 className="text-2xl font-bold text-white">{symbol}</h1>
-          {prediction && (
-            <span className="text-sm text-slate-text">
-              last close ${prediction.last_close.toFixed(2)}
-            </span>
-          )}
-        </div>
-        <div className="h-[420px]">
-          <PredictionChart chart={chart} prediction={prediction} loading={loading} />
-        </div>
-      </div>
+    <main className="mx-auto max-w-7xl space-y-4 p-6">
+      <h1 className="font-mono text-2xl font-bold text-primary">{symbol}</h1>
 
-      <div className="h-[480px]">
-        <SentimentCard sentiment={sentiment} loading={loading} />
-      </div>
+      <QuickStats chart={chart} sentiment={sentiment} loading={loading} />
 
-      <div className="lg:col-span-3 h-[360px]">
-        <ModelDiagnostics diagnostics={diagnostics} loading={loading} onRetrain={onRetrain} />
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div className="lg:col-span-2">
+          <div className="h-[440px]">
+            <PredictionChart chart={chart} prediction={prediction} loading={loading} />
+          </div>
+        </div>
+
+        <div className="h-[480px] lg:h-[440px]">
+          <SentimentCard sentiment={sentiment} loading={loading} />
+        </div>
+
+        <div className="lg:col-span-3">
+          <div className="h-[420px]">
+            <ModelDiagnostics diagnostics={diagnostics} loading={loading} onRetrain={onRetrain} />
+          </div>
+        </div>
       </div>
     </main>
   );
