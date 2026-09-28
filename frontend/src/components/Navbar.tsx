@@ -16,9 +16,9 @@ export default function Navbar({ activeSymbol, onSymbolChange }: NavbarProps) {
           <span className="text-lg font-bold text-white">Bull</span>
           <span className="text-lg font-bold text-bull">Script</span>
         </div>
-        <span className="terminal-badge">
-          <TerminalSquare className="h-3.5 w-3.5" />
-          <span>live</span>
+        <span className="terminal-badge" data-testid="terminal-badge">
+          <TerminalSquare className="h-3.5 w-3.5" aria-hidden="true" />
+          <span>&gt;_ live</span>
         </span>
       </div>
 

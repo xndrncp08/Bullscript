@@ -1,9 +1,16 @@
 from datetime import date, datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
-class Candle(BaseModel):
+class _APIModel(BaseModel):
+    """Base schema that allows `model_*`-prefixed field names (e.g. model_version)
+    without tripping Pydantic's protected-namespace warning."""
+
+    model_config = ConfigDict(protected_namespaces=())
+
+
+class Candle(_APIModel):
     date: date
     open: float
     high: float
@@ -12,7 +19,7 @@ class Candle(BaseModel):
     volume: int
 
 
-class IndicatorPoint(BaseModel):
+class IndicatorPoint(_APIModel):
     date: date
     rsi_14: float | None = None
     macd: float | None = None
@@ -28,26 +35,26 @@ class IndicatorPoint(BaseModel):
     volatility_20: float | None = None
 
 
-class ChartResponse(BaseModel):
+class ChartResponse(_APIModel):
     symbol: str
     candles: list[Candle]
     indicators: list[IndicatorPoint]
 
 
-class ForecastPoint(BaseModel):
+class ForecastPoint(_APIModel):
     date: date
     predicted_close: float
     lower_bound: float
     upper_bound: float
 
 
-class HorizonForecast(BaseModel):
+class HorizonForecast(_APIModel):
     horizon: str
     points: list[ForecastPoint]
     confidence: float
 
 
-class PredictionResponse(BaseModel):
+class PredictionResponse(_APIModel):
     symbol: str
     generated_at: datetime
     model_version: str
@@ -55,7 +62,7 @@ class PredictionResponse(BaseModel):
     horizons: list[HorizonForecast]
 
 
-class SentimentHeadline(BaseModel):
+class SentimentHeadline(_APIModel):
     headline: str
     source: str | None = None
     published_at: datetime | None = None
@@ -65,7 +72,7 @@ class SentimentHeadline(BaseModel):
     negative: float
 
 
-class SentimentResponse(BaseModel):
+class SentimentResponse(_APIModel):
     symbol: str
     generated_at: datetime
     weighted_score: float
@@ -73,7 +80,7 @@ class SentimentResponse(BaseModel):
     headlines: list[SentimentHeadline]
 
 
-class RetrainLogEntry(BaseModel):
+class RetrainLogEntry(_APIModel):
     timestamp: datetime
     symbol: str
     horizon: str
@@ -85,7 +92,7 @@ class RetrainLogEntry(BaseModel):
     model_version: str
 
 
-class ModelDiagnostics(BaseModel):
+class ModelDiagnostics(_APIModel):
     symbol: str
     horizon: str
     model_version: str
@@ -97,11 +104,11 @@ class ModelDiagnostics(BaseModel):
     retrain_log: list[RetrainLogEntry]
 
 
-class DiagnosticsResponse(BaseModel):
+class DiagnosticsResponse(_APIModel):
     generated_at: datetime
     models: list[ModelDiagnostics]
 
 
-class RetrainRequest(BaseModel):
+class RetrainRequest(_APIModel):
     symbol: str = Field(..., examples=["AAPL"])
     horizons: list[str] | None = None
