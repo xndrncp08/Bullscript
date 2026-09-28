@@ -6,7 +6,7 @@ pydantic-settings==2.5.2
 # Data
 pandas==2.2.2
 numpy==1.26.4
-yfinance==0.2.43
+yfinance==1.7.0
 
 # ML
 scikit-learn==1.5.1
