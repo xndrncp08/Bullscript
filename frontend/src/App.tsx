@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
+import { Toaster, toast } from "sonner";
 
 import { api } from "@/api/client";
 import Dashboard from "@/components/Dashboard";
+import ErrorBoundary from "@/components/ErrorBoundary";
 import Navbar from "@/components/Navbar";
 import type { ChartResponse, DiagnosticsResponse, PredictionResponse, SentimentResponse } from "@/types";
 
@@ -12,11 +14,9 @@ export default function App() {
   const [sentiment, setSentiment] = useState<SentimentResponse | null>(null);
   const [diagnostics, setDiagnostics] = useState<DiagnosticsResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   const loadAll = useCallback(async (targetSymbol: string) => {
     setLoading(true);
-    setError(null);
     try {
       const [chartData, sentimentData, diagnosticsData] = await Promise.all([
         api.getChart(targetSymbol),
@@ -34,7 +34,9 @@ export default function App() {
         setPrediction(null);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load ticker data");
+      const message =
+        err instanceof Error ? err.message : `Couldn't load data for ${targetSymbol}`;
+      toast.error("Failed to load ticker", { description: message });
     } finally {
       setLoading(false);
     }
@@ -45,29 +47,32 @@ export default function App() {
   }, [symbol, loadAll]);
 
   const handleRetrain = async () => {
-    await api.triggerRetrain(symbol);
-    await loadAll(symbol);
+    try {
+      await api.triggerRetrain(symbol);
+      toast.success(`Retrain triggered for ${symbol}`);
+      await loadAll(symbol);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Retrain request failed";
+      toast.error("Retrain failed", { description: message });
+      throw err;
+    }
   };
 
   return (
-    <div className="min-h-screen bg-obsidian">
-      <Navbar activeSymbol={symbol} onSymbolChange={setSymbol} />
-
-      {error && (
-        <div className="mx-6 mt-4 rounded-lg border border-bear/40 bg-bear/10 px-4 py-2 text-sm text-bear">
-          {error}
-        </div>
-      )}
-
-      <Dashboard
-        symbol={symbol}
-        chart={chart}
-        prediction={prediction}
-        sentiment={sentiment}
-        diagnostics={diagnostics}
-        loading={loading}
-        onRetrain={handleRetrain}
-      />
-    </div>
+    <ErrorBoundary>
+      <div className="min-h-screen bg-obsidian">
+        <Toaster theme="dark" richColors position="bottom-right" />
+        <Navbar activeSymbol={symbol} onSymbolChange={setSymbol} />
+        <Dashboard
+          symbol={symbol}
+          chart={chart}
+          prediction={prediction}
+          sentiment={sentiment}
+          diagnostics={diagnostics}
+          loading={loading}
+          onRetrain={handleRetrain}
+        />
+      </div>
+    </ErrorBoundary>
   );
 }

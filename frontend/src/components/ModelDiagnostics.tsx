@@ -31,7 +31,7 @@ export default function ModelDiagnostics({ diagnostics, loading, onRetrain }: Mo
       <div className="mb-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <TerminalSquare className="h-4 w-4 text-bull" />
-          <h2 className="text-sm font-semibold text-white">ml/diagnostics</h2>
+          <h2 className="text-sm font-semibold text-primary">ml/diagnostics</h2>
         </div>
         <button
           onClick={handleRetrain}
@@ -50,20 +50,20 @@ export default function ModelDiagnostics({ diagnostics, loading, onRetrain }: Mo
           <p className="text-slate-text">$ no active models yet — trigger a retrain to begin.</p>
         ) : (
           <>
-            <p className="text-bull">$ model --status {activeModel.symbol} {activeModel.horizon}</p>
+            <p className="text-cyan">$ model --status {activeModel.symbol} {activeModel.horizon}</p>
             <p className="text-slate-text">
-              version: <span className="text-white">{activeModel.model_version}</span>
+              version: <span className="text-primary">{activeModel.model_version}</span>
             </p>
             <p className="text-slate-text">
-              last trained: <span className="text-white">{activeModel.trained_at ?? "n/a"}</span>
+              last trained: <span className="text-primary">{activeModel.trained_at ?? "n/a"}</span>
             </p>
             <p className="text-slate-text">
-              rmse: <span className="text-white">{activeModel.rmse?.toFixed(4) ?? "—"}</span>{" "}
-              mape: <span className="text-white">{activeModel.mape?.toFixed(4) ?? "—"}</span>{" "}
-              r²: <span className="text-white">{activeModel.r2?.toFixed(4) ?? "—"}</span>
+              rmse: <span className="text-primary">{activeModel.rmse?.toFixed(4) ?? "—"}</span>{" "}
+              mape: <span className="text-primary">{activeModel.mape?.toFixed(4) ?? "—"}</span>{" "}
+              r²: <span className="text-primary">{activeModel.r2?.toFixed(4) ?? "—"}</span>
             </p>
 
-            <p className="mt-3 text-bull">$ model --feature-importance</p>
+            <p className="mt-3 text-cyan">$ model --feature-importance</p>
             {importances.map(([name, value]) => (
               <div key={name} className="mt-1 flex items-center gap-2">
                 <span className="w-28 shrink-0 text-slate-text">{name}</span>
@@ -73,11 +73,11 @@ export default function ModelDiagnostics({ diagnostics, loading, onRetrain }: Mo
                     style={{ width: `${Math.min(100, value * 500)}%` }}
                   />
                 </div>
-                <span className="w-14 text-right text-white">{value.toFixed(3)}</span>
+                <span className="w-14 text-right text-primary">{value.toFixed(3)}</span>
               </div>
             ))}
 
-            <p className="mt-3 text-bull">$ model --retrain-log --tail 5</p>
+            <p className="mt-3 text-cyan">$ model --retrain-log --tail 5</p>
             {activeModel.retrain_log.slice(0, 5).map((entry, idx) => (
               <p key={idx} className="text-slate-text">
                 [{entry.timestamp}]{" "}

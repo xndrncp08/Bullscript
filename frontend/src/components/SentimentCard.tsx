@@ -21,7 +21,7 @@ export default function SentimentCard({ sentiment, loading }: SentimentCardProps
 
   return (
     <div className="panel flex h-full flex-col p-4">
-      <h2 className="text-sm font-semibold text-white">News Sentiment (FinBERT)</h2>
+      <h2 className="text-sm font-semibold text-primary">News Sentiment (FinBERT)</h2>
       <p className="mb-4 text-xs text-slate-text">Weighted index across recent headlines</p>
 
       {loading ? (
@@ -48,7 +48,7 @@ export default function SentimentCard({ sentiment, loading }: SentimentCardProps
               style={{ width: "100%", opacity: 0.3 }}
             />
             <div
-              className="-mt-2 h-2 w-2 rounded-full bg-white shadow-glow-bull"
+              className="-mt-2 h-2 w-2 rounded-full bg-primary shadow-glow-bull"
               style={{ marginLeft: `${scorePct}%` }}
             />
           </div>
@@ -59,7 +59,7 @@ export default function SentimentCard({ sentiment, loading }: SentimentCardProps
                 key={idx}
                 className="rounded-lg border border-slate-border bg-obsidian p-2.5 text-xs"
               >
-                <p className="line-clamp-2 text-white/90">{h.headline}</p>
+                <p className="line-clamp-2 text-primary/90">{h.headline}</p>
                 <div className="mt-1 flex items-center justify-between text-slate-text">
                   <span>{h.source ?? "unknown source"}</span>
                   <span
