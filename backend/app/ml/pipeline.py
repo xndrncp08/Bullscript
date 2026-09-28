@@ -23,6 +23,7 @@ Per (symbol, horizon):
 
 from __future__ import annotations
 
+import threading
 from collections import defaultdict
 from datetime import datetime, timezone
 
@@ -70,6 +71,22 @@ _XGB_PARAMS = dict(
     random_state=42,
 )
 _MAX_TREES = 400
+
+
+_locks_guard = threading.Lock()
+_training_locks: dict[str, threading.RLock] = {}
+
+
+def training_lock(symbol: str, horizon_key: str) -> threading.RLock:
+    """One lock per (symbol, horizon). The API serves requests on a thread
+    pool, so two requests for a symbol nobody has forecast yet would
+    otherwise each train (and version) the same model."""
+    key = f"{symbol.upper()}_{horizon_key}"
+    with _locks_guard:
+        lock = _training_locks.get(key)
+        if lock is None:
+            lock = _training_locks[key] = threading.RLock()
+        return lock
 
 
 def _now() -> str:
@@ -146,6 +163,16 @@ def run_training_cycle(
     price_df: pd.DataFrame | None = None,
 ) -> dict:
     """Run one monitor -> (maybe) retrain -> promote cycle for a symbol/horizon."""
+    with training_lock(symbol, horizon_key):
+        return _run_training_cycle(symbol, horizon_key, force, price_df)
+
+
+def _run_training_cycle(
+    symbol: str,
+    horizon_key: str,
+    force: bool,
+    price_df: pd.DataFrame | None,
+) -> dict:
     horizon_days = settings.forecast_horizons[horizon_key]
     if price_df is None:
         price_df = fetch_price_history(symbol)

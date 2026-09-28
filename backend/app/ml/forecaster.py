@@ -16,7 +16,7 @@ import pandas as pd
 from app.config import settings
 from app.ml import model_store
 from app.ml.features import latest_feature_rows
-from app.ml.pipeline import run_training_cycle
+from app.ml.pipeline import run_training_cycle, training_lock
 from app.services.data_fetcher import fetch_price_history
 
 # Two-sided z-scores for the supported central intervals.
@@ -65,8 +65,14 @@ def generate_forecast(
 
     model, record = model_store.load_active_model(symbol, horizon_key)
     if model is None or not model_store.is_compatible(record):
-        run_training_cycle(symbol, horizon_key, force=True, price_df=price_df)
-        model, record = model_store.load_active_model(symbol, horizon_key)
+        with training_lock(symbol, horizon_key):
+            # a concurrent request may have trained it while we waited
+            model, record = model_store.load_active_model(symbol, horizon_key)
+            if model is None or not model_store.is_compatible(record):
+                # not forced: the log records the real reason (bootstrap or
+                # schema upgrade) rather than calling it a manual retrain
+                run_training_cycle(symbol, horizon_key, price_df=price_df)
+                model, record = model_store.load_active_model(symbol, horizon_key)
 
     predicted_log_return = float(model.predict(latest_feature_rows(price_df))[0])
     last_close = float(price_df["close"].iloc[-1])
