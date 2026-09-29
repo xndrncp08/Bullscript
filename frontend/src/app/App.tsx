@@ -92,6 +92,7 @@ export default function App() {
     [reloadModel]
   );
   const retrain = useRetrain(onRetrainComplete);
+  const runRetrain = retrain.run;
 
   useEffect(() => {
     if (retrain.state.status === "error" && retrain.state.error) {
@@ -112,8 +113,8 @@ export default function App() {
     [setSymbol, setRecents]
   );
 
+  const chart = data.chart;
   useEffect(() => {
-    const { chart } = data;
     if (chart.status === "success" && chart.symbol === symbol) {
       lastGoodSymbol.current = symbol;
       return;
@@ -135,7 +136,7 @@ export default function App() {
     } else {
       toast.error(`Couldn't load ${symbol}`, { id: `chart-error-${symbol}`, description: error.message });
     }
-  }, [data.chart, symbol, setSymbol, setRecents]);
+  }, [chart, symbol, setSymbol, setRecents]);
 
   // --- watchlist ---
   const watched = watchlist.includes(symbol);
@@ -195,7 +196,7 @@ export default function App() {
         label: `Retrain forecast models for ${symbol}`,
         keywords: "train model ml refresh",
         icon: <RotateCw className="h-3.5 w-3.5" />,
-        run: () => void retrain.run(symbol),
+        run: () => void runRetrain(symbol),
       },
       ...horizons.map((h) => ({
         id: `horizon-${h}`,
@@ -255,7 +256,7 @@ export default function App() {
       toggleWatch,
       toggleTheme,
       togglePalette,
-      retrain.run,
+      runRetrain,
       setHorizon,
       setRange,
       setMode,

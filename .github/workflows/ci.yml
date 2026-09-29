@@ -13,7 +13,7 @@ concurrency:
 
 jobs:
   backend-tests:
-    name: Backend (pytest)
+    name: Backend (ruff, pytest)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
@@ -33,11 +33,14 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements-test.txt
 
+      - name: Lint
+        run: ruff check .
+
       - name: Run pytest
         run: python -m pytest -v
 
   frontend-tests:
-    name: Frontend (typecheck, Vitest, build)
+    name: Frontend (lint, typecheck, Vitest, build)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
@@ -54,6 +57,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Lint
+        run: npm run lint
 
       - name: Type check
         run: npx tsc -b

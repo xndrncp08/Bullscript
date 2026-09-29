@@ -62,6 +62,10 @@ def reset_rate_limiter():
 def sample_headlines():
     return [
         {"headline": "Company beats earnings expectations by wide margin", "source": "Reuters", "published_at": None},
-        {"headline": "Regulators announce probe into accounting practices", "source": "Bloomberg", "published_at": None},
+        {
+            "headline": "Regulators announce probe into accounting practices",
+            "source": "Bloomberg",
+            "published_at": None,
+        },
         {"headline": "Quarterly revenue in line with analyst estimates", "source": "CNBC", "published_at": None},
     ]

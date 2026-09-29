@@ -45,7 +45,7 @@ def _indicator_records(features: pd.DataFrame) -> list[dict]:
     rounded = rounded.astype(object).where(pd.notna(rounded), None)
     return [
         {"date": date, **row}
-        for date, row in zip(features.index.date, rounded.to_dict("records"))
+        for date, row in zip(features.index.date, rounded.to_dict("records"), strict=True)
     ]
 
 
@@ -59,6 +59,7 @@ def _candle_records(price_df: pd.DataFrame) -> list[dict]:
             price_df["low"].round(2).tolist(),
             price_df["close"].round(2).tolist(),
             price_df["volume"].fillna(0).tolist(),
+            strict=True,
         )
     ]
 

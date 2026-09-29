@@ -1,6 +1,5 @@
 from datetime import datetime, timezone
 
-import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 

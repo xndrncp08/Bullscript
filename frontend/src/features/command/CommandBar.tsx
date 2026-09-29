@@ -2,7 +2,8 @@ import { Moon, Search, Sun } from "lucide-react";
 import { motion } from "motion/react";
 import { useState } from "react";
 
-import { Kbd, MOD_KEY } from "@/components/primitives/Kbd";
+import { Kbd } from "@/components/primitives/Kbd";
+import { MOD_KEY } from "@/lib/platform";
 import type { Resource } from "@/hooks/useTickerData";
 import type { Theme } from "@/hooks/useTheme";
 import { springs } from "@/motion/tokens";
