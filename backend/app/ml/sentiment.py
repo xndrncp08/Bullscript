@@ -112,7 +112,7 @@ def score_headlines(headlines: list[dict]) -> list[dict]:
     raw_results = clf(texts)
 
     enriched = []
-    for headline, scores in zip(headlines, raw_results):
+    for headline, scores in zip(headlines, raw_results, strict=True):
         score_map = {s["label"].lower(): s["score"] for s in scores}
         top_label = max(score_map, key=score_map.get)
         enriched.append(

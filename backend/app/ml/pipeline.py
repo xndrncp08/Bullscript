@@ -266,7 +266,7 @@ def _run_training_cycle(
             r2=challenger_metrics["r2"],
             feature_importances={
                 name: float(value)
-                for name, value in zip(FEATURE_COLUMNS, deployed.feature_importances_)
+                for name, value in zip(FEATURE_COLUMNS, deployed.feature_importances_, strict=True)
             },
             feature_version=FEATURE_VERSION,
             target="log_return",
