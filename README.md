@@ -106,7 +106,7 @@ highs; a property test asserts the features are identical at 10× the price.
 | `hit_rate` | Share of calls with the right direction |
 | `rmse`, `mape`, `r2` | Price-space errors; price-level R² flatters any persistent series, so read it next to skill |
 
-Paths are geometric to the target on business days; the 80% interval comes
+Paths are geometric to the target on NYSE trading days; the 80% interval comes
 from the holdout residual spread, widening with `√(k/h)`.
 
 ## Self-training loop
@@ -168,8 +168,8 @@ Reduced motion keeps fades and drops movement.
 ## Testing
 
 ```bash
-cd backend && python -m pytest          # 116 tests
-cd frontend && npx tsc -b && npm run test && npx vite build   # 148 tests
+cd backend && ruff check . && python -m pytest          # 123 tests
+cd frontend && npm run lint && npx tsc -b && npm run test && npx vite build   # 152 tests
 ```
 
 CI (`.github/workflows/ci.yml`) runs both on pushes to `main`, `feature/**`
@@ -187,5 +187,5 @@ torch isn't needed.
 | `BULLSCRIPT_FORECAST_INTERVAL` | 0.8 | forecast interval coverage |
 
 Market data comes from Yahoo Finance via `yfinance` (unofficial, may be
-delayed). Exchange holidays aren't modelled in session status or forecast
-dates.
+delayed). Session status and forecast dates follow the NYSE holiday calendar;
+early closes aren't modelled.

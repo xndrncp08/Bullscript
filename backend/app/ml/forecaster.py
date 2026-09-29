@@ -17,6 +17,7 @@ from app.config import settings
 from app.ml import model_store
 from app.ml.features import latest_feature_rows
 from app.ml.pipeline import run_training_cycle, training_lock
+from app.ml.trading_calendar import next_trading_days
 from app.services.data_fetcher import fetch_price_history
 
 # Two-sided z-scores for the supported central intervals.
@@ -38,7 +39,7 @@ def build_path(
     interval: float,
 ) -> list[dict]:
     z = _z_for(interval)
-    dates = pd.bdate_range(last_date + pd.offsets.BDay(1), periods=horizon_days)
+    dates = next_trading_days(last_date, horizon_days)
 
     points = []
     for step, date in enumerate(dates, start=1):
